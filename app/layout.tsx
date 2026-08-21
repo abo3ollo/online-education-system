@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Marine",
-  description: "Learning Managment System",
+  title: "education online systems",
+  description: "Learning Managment System(Lms)",
 };
 
 export default function RootLayout({

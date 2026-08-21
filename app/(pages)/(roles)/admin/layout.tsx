@@ -69,7 +69,7 @@ export default function AdminLayout({
   }
 
   if (currentUser.role !== "admin") return null;
-
+  
   const navItems = [
     { href: "/admin", label: "رئيسيه", icon: LayoutDashboard },
     { href: "/admin/teachers", label: "المعلمين", icon: FaChalkboardTeacher },
