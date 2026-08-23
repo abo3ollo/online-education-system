@@ -248,19 +248,18 @@ export const deleteGrade = mutation({
   },
 });
 
-// ✅ جلب جميع الصفوف النشطة (للاستخدام العام)
+// ✅ جلب جميع الصفوف النشطة (للاستخدام العام - بدون صلاحيات)
 export const getActiveGrades = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("غير مصرح");
-
-    const grades = await ctx.db
-      .query("grades")
-      .withIndex("by_status", (q) => q.eq("status", "active"))
-      .collect();
-
-    return grades.sort((a, b) => a.gradeLevel - b.gradeLevel);
+    // ✅ لا نحتاج للتحقق من الصلاحية لأنها بيانات عامة
+    const allGrades = await ctx.db.query("grades").collect();
+    
+    // ✅ فلترة الصفوف النشطة
+    const activeGrades = allGrades.filter((g) => g.status === "active");
+    
+    // ✅ ترتيب حسب المستوى
+    return activeGrades.sort((a, b) => a.gradeLevel - b.gradeLevel);
   },
 });
 

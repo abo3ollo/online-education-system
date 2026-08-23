@@ -9,7 +9,7 @@ import {
   GraduationCap, Calendar, CheckCircle,
   AlertCircle, Loader2, Phone, Mail,
   FileText, FolderOpen, Eye, ChevronRight,
-  Clock, XCircle, Wallet,
+  Clock, XCircle, Wallet, Receipt,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -20,11 +20,27 @@ function formatDate(ts?: number) {
   return format(new Date(ts), "dd MMM yyyy", { locale: ar });
 }
 
-const paymentStatusMap: Record<string, { label: string; cls: string; icon: any }> = {
-  completed: { label: "مكتمل",  cls: "bg-green-100 text-green-700", icon: CheckCircle },
-  pending:   { label: "معلق",    cls: "bg-amber-100 text-amber-700", icon: Clock },
-  failed:    { label: "فشل",    cls: "bg-red-100 text-red-600", icon: XCircle },
-  refunded:  { label: "مُسترد", cls: "bg-blue-100 text-blue-700", icon: Wallet },
+const statusLabels: Record<string, { label: string; cls: string; icon: any }> = {
+  completed: { label: "مكتمل", cls: "bg-green-100 text-green-700", icon: CheckCircle },
+  approved: { label: "موافق عليه", cls: "bg-green-100 text-green-700", icon: CheckCircle },
+  pending: { label: "معلق", cls: "bg-amber-100 text-amber-700", icon: Clock },
+  rejected: { label: "مرفوض", cls: "bg-red-100 text-red-600", icon: XCircle },
+  failed: { label: "فشل", cls: "bg-red-100 text-red-600", icon: XCircle },
+  refunded: { label: "مُسترد", cls: "bg-blue-100 text-blue-700", icon: Wallet },
+};
+
+const typeIcons: Record<string, string> = {
+  platform: "💻",
+  aptitude: "🎯",
+  academic: "📚",
+  purchase: "🛒",
+};
+
+const typeLabels: Record<string, string> = {
+  platform: "منصة",
+  aptitude: "قدرات",
+  academic: "تحصيلي",
+  purchase: "مشتريات",
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -39,12 +55,14 @@ export default function ParentDashboard() {
   // ── Queries ───────────────────────────────────────────────────
   const currentUser = useQuery(api.user.auth.getCurrentUser);
 
-  const children = useQuery(
-    api.relationships.parentStudent.getChildrenByParent,
+  // ✅ جلب الأبناء مع معاملاتهم (الدالة الجديدة)
+  const childrenWithTransactions = useQuery(
+    api.user.parents.getChildrenWithTransactions,
     currentUser?._id
       ? { parentId: currentUser._id as Id<"users"> }
       : "skip"
   );
+  console.log(childrenWithTransactions)
 
   const grades = useQuery(
     api.user.parents.getStudentGrades,
@@ -56,17 +74,8 @@ export default function ParentDashboard() {
     selectedStudentId ? { studentId: selectedStudentId } : "skip"
   );
 
-  const payments = useQuery(
-    api.user.parents.getPayments,
-    currentUser?._id
-      ? selectedStudentId
-        ? { studentId: selectedStudentId }
-        : {}
-      : "skip"
-  );
-
   // ── Loading / auth guard ──────────────────────────────────────
-  if (currentUser === undefined) {
+  if (currentUser === undefined || childrenWithTransactions === undefined) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
@@ -86,14 +95,57 @@ export default function ParentDashboard() {
   }
 
   // ── Derived data ──────────────────────────────────────────────
-  const childrenList = children ?? [];
-  const paymentList  = payments ?? [];
-  const gradeData    = grades   ?? { examGrades: [], assignmentGrades: [] };
-  const groupList    = groups   ?? [];
+  // ✅ childrenWithTransactions يحتوي على الأبناء مع معاملاتهم
+  const childrenList = childrenWithTransactions ?? [];
+
+  // ✅ دالة لجلب معاملات طفل معين
+  const getChildTransactions = (childId: Id<"users">) => {
+    const child = childrenList.find((c: any) => c?._id === childId);
+    return child?.transactions || [];
+  };
+
+  // ✅ جميع المعاملات (لجميع الأبناء)
+  const allTransactions = childrenList.flatMap((child: any) => child?.transactions || []);
+
+  // ✅ معاملات الطالب المحدد
+  const studentTransactions = selectedStudentId
+    ? getChildTransactions(selectedStudentId)
+    : allTransactions;
+
+  const gradeData = grades ?? { examGrades: [], assignmentGrades: [] };
+  const groupList = groups ?? [];
 
   const selectedChild = childrenList.find(
     (c: any) => c?._id === selectedStudentId
   );
+
+  // ✅ حساب حالة الاشتراك من المعاملات
+  const getSubscriptionStatus = (transactions: any[]) => {
+    if (!transactions || transactions.length === 0) return "inactive";
+    const sorted = [...transactions].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const latest = sorted[0];
+    if (latest.status === "completed" || latest.status === "approved") return "active";
+    if (latest.status === "pending") return "awaiting_approval";
+    if (latest.status === "rejected" || latest.status === "failed") return "rejected";
+    return "inactive";
+  };
+
+  // ✅ حساب الإحصائيات من المعاملات
+  const totalPaid = studentTransactions
+    .filter((t: any) => t.status === "completed" || t.status === "approved")
+    .reduce((s: number, t: any) => s + (t.amount || 0), 0);
+
+  const totalPending = studentTransactions
+    .filter((t: any) => t.status === "pending")
+    .reduce((s: number, t: any) => s + (t.amount || 0), 0);
+
+  const unpaidCount = studentTransactions
+    .filter((t: any) => t.status === "pending" || t.status === "failed" || t.status === "rejected")
+    .length;
+
+  const gradedCount = gradeData.examGrades?.filter(
+    (g: any) => g.status === "graded"
+  ).length ?? 0;
 
   // ✅ Select student AND switch to relevant tab
   const handleSelectStudent = (
@@ -104,28 +156,11 @@ export default function ParentDashboard() {
     setActiveTab(tab);
   };
 
-  // ✅ حساب الإحصائيات
-  const totalPaid = paymentList
-    .filter((p: any) => p.status === "completed")
-    .reduce((s: number, p: any) => s + p.amount, 0);
-  
-  const totalPending = paymentList
-    .filter((p: any) => p.status === "pending")
-    .reduce((s: number, p: any) => s + p.amount, 0);
-  
-  const unpaidCount = paymentList
-    .filter((p: any) => p.status === "pending" || p.status === "failed")
-    .length;
-
-  const gradedCount = gradeData.examGrades.filter(
-    (g: any) => g.status === "graded"
-  ).length;
-
   const tabs = [
-    { key: "children" as const, label: "الأبناء",   icon: Users       },
-    { key: "grades"   as const, label: "الدرجات",   icon: Award       },
-    { key: "groups"   as const, label: "المجموعات", icon: FolderOpen  },
-    { key: "payments" as const, label: "المدفوعات", icon: CreditCard  },
+    { key: "children" as const, label: "الأبناء", icon: Users },
+    { key: "grades" as const, label: "الدرجات", icon: Award },
+    { key: "groups" as const, label: "المجموعات", icon: FolderOpen },
+    { key: "payments" as const, label: "المدفوعات", icon: CreditCard },
   ];
 
   return (
@@ -165,10 +200,10 @@ export default function ParentDashboard() {
         {/* ── Stats ──────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: "الأبناء",          value: childrenList.length, icon: Users,      iconCls: "text-blue-500",   bg: "bg-blue-50"   },
-            { label: "الدرجات",          value: gradedCount,          icon: Award,      iconCls: "text-green-500",  bg: "bg-green-50"  },
-            { label: "مدفوعات معلقة",    value: totalPending > 0 ? `${totalPending} ج.م` : "0", icon: CreditCard, iconCls: "text-amber-500", bg: "bg-amber-50"  },
-            { label: "يجب الدفع",         value: unpaidCount,          icon: AlertCircle, iconCls: "text-red-500", bg: "bg-red-50" },
+            { label: "الأبناء", value: childrenList.length, icon: Users, iconCls: "text-blue-500", bg: "bg-blue-50" },
+            { label: "الدرجات المصححة", value: gradedCount, icon: Award, iconCls: "text-green-500", bg: "bg-green-50" },
+            { label: "مدفوعات معلقة", value: totalPending > 0 ? `${totalPending} ج.م` : "0", icon: CreditCard, iconCls: "text-amber-500", bg: "bg-amber-50" },
+            { label: "يجب الدفع", value: unpaidCount, icon: AlertCircle, iconCls: "text-red-500", bg: "bg-red-50" },
           ].map((s) => {
             const Icon = s.icon;
             return (
@@ -195,6 +230,15 @@ export default function ParentDashboard() {
             {childrenList.map((child: any) => {
               if (!child) return null;
               const isSelected = selectedStudentId === child._id;
+              const childTxs = getChildTransactions(child._id);
+              const status = getSubscriptionStatus(childTxs);
+              const statusDotColor = {
+                active: "bg-green-500",
+                awaiting_approval: "bg-amber-500",
+                rejected: "bg-red-500",
+                inactive: "bg-gray-300",
+              }[status] || "bg-gray-300";
+
               return (
                 <button
                   key={child._id}
@@ -224,6 +268,7 @@ export default function ParentDashboard() {
                       رئيسي
                     </span>
                   )}
+                  <span className={`w-2.5 h-2.5 rounded-full ${statusDotColor}`} />
                 </button>
               );
             })}
@@ -268,12 +313,32 @@ export default function ParentDashboard() {
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {childrenList.map((child: any) => {
                     if (!child) return null;
+                    const childTxs = getChildTransactions(child._id);
+                    const status = getSubscriptionStatus(childTxs);
+                    
+                    const statusLabelsMap: Record<string, string> = {
+                      active: "نشط ✅",
+                      awaiting_approval: "قيد المراجعة ⏳",
+                      rejected: "مرفوض ❌",
+                      inactive: "غير مفعل",
+                    };
+                    
+                    const statusColorsMap: Record<string, string> = {
+                      active: "bg-green-100 text-green-700",
+                      awaiting_approval: "bg-amber-100 text-amber-700",
+                      rejected: "bg-red-100 text-red-600",
+                      inactive: "bg-gray-100 text-gray-600",
+                    };
+
+                    const totalPaidChild = childTxs
+                      .filter((t: any) => t.status === "completed" || t.status === "approved")
+                      .reduce((s: number, t: any) => s + (t.amount || 0), 0);
+
                     return (
                       <div
                         key={child._id}
                         className="border border-gray-100 rounded-xl p-5 hover:border-teal-300 hover:shadow-sm transition-all"
                       >
-                        {/* Name + badges */}
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-3">
                             <div className="w-11 h-11 rounded-xl bg-teal-600 flex items-center justify-center text-white font-bold text-lg">
@@ -302,43 +367,34 @@ export default function ParentDashboard() {
                           </div>
                         </div>
 
-                        {/* Info rows */}
                         <div className="space-y-1.5 mb-4">
                           <div className="flex items-center gap-2 text-xs text-gray-500">
                             <GraduationCap className="h-3.5 w-3.5 text-teal-500" />
-                            <span>{child.gradeName ?? "غير محدد"}</span>
+                            <span>{child.grade?? "غير محدد"}</span>
                           </div>
-                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                          {/* <div className="flex items-center gap-2 text-xs text-gray-500">
                             <FolderOpen className="h-3.5 w-3.5 text-teal-500" />
                             <span>{child.groupName ?? "غير محدد"}</span>
-                          </div>
+                          </div> */}
                           <div className="flex items-center gap-2 text-xs">
-                            <span
-                              className={`px-2 py-0.5 rounded-full ${
-                                child.status === "active" || child.status === "approved"
-                                  ? "bg-green-100 text-green-700"
-                                  : child.status === "pending"
-                                  ? "bg-amber-100 text-amber-700"
-                                  : "bg-gray-100 text-gray-600"
-                              }`}
-                            >
-                              {child.status === "active" || child.status === "approved"
-                                ? "نشط"
-                                : child.status === "pending"
-                                ? "انتظار"
-                                : child.status ?? "غير محدد"}
+                            <span className={`px-2 py-0.5 rounded-full ${statusColorsMap[status] || "bg-gray-100 text-gray-600"}`}>
+                              {statusLabelsMap[status] || "غير محدد"}
                             </span>
                           </div>
+                          {childTxs.length > 0 && (
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <Wallet className="h-3.5 w-3.5 text-teal-500" />
+                              <span>
+                                إجمالي المدفوع: {totalPaidChild} ج.م
+                              </span>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Action buttons */}
                         <div className="grid grid-cols-3 gap-2">
                           <button
                             onClick={() =>
-                              handleSelectStudent(
-                                child._id as Id<"users">,
-                                "grades"
-                              )
+                              handleSelectStudent(child._id as Id<"users">, "grades")
                             }
                             className="flex flex-col items-center gap-1 p-2 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg text-xs transition-colors"
                           >
@@ -347,10 +403,7 @@ export default function ParentDashboard() {
                           </button>
                           <button
                             onClick={() =>
-                              handleSelectStudent(
-                                child._id as Id<"users">,
-                                "groups"
-                              )
+                              handleSelectStudent(child._id as Id<"users">, "groups")
                             }
                             className="flex flex-col items-center gap-1 p-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs transition-colors"
                           >
@@ -359,10 +412,7 @@ export default function ParentDashboard() {
                           </button>
                           <button
                             onClick={() =>
-                              handleSelectStudent(
-                                child._id as Id<"users">,
-                                "payments"
-                              )
+                              handleSelectStudent(child._id as Id<"users">, "payments")
                             }
                             className="flex flex-col items-center gap-1 p-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs transition-colors"
                           >
@@ -406,9 +456,9 @@ export default function ParentDashboard() {
                   <div>
                     <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                       <FileText className="h-4 w-4 text-teal-600" />
-                      درجات الامتحانات ({gradeData.examGrades.length})
+                      درجات الامتحانات ({gradeData.examGrades?.length ?? 0})
                     </h3>
-                    {gradeData.examGrades.length === 0 ? (
+                    {(gradeData.examGrades?.length ?? 0) === 0 ? (
                       <p className="text-sm text-gray-400 text-center py-6 bg-gray-50 rounded-xl">
                         لا توجد امتحانات مسجلة
                       </p>
@@ -455,9 +505,9 @@ export default function ParentDashboard() {
                   <div>
                     <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                       <BookOpen className="h-4 w-4 text-teal-600" />
-                      درجات الواجبات ({gradeData.assignmentGrades.length})
+                      درجات الواجبات ({gradeData.assignmentGrades?.length ?? 0})
                     </h3>
-                    {gradeData.assignmentGrades.length === 0 ? (
+                    {(gradeData.assignmentGrades?.length ?? 0) === 0 ? (
                       <p className="text-sm text-gray-400 text-center py-6 bg-gray-50 rounded-xl">
                         لا توجد واجبات مسجلة
                       </p>
@@ -595,161 +645,238 @@ export default function ParentDashboard() {
           {/* ── TAB: المدفوعات ───────────────────────────────────── */}
           {activeTab === "payments" && (
             <div className="p-6">
-              {payments === undefined ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {/* ✅ حالة اشتراك ولي الأمر */}
+              <div className="space-y-6">
+                {/* ✅ حالة اشتراك ولي الأمر */}
+                {/* <div className="bg-white rounded-xl border border-gray-200 p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
+                      <CreditCard className="h-5 w-5 text-teal-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">حالة الاشتراك</h3>
+                      <p className="text-xs text-gray-500">حالة اشتراكك في المنصة</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-4 rounded-xl border">
+                    <div>
+                      <p className="text-sm text-gray-500">حالة الاشتراك</p>
+                      <p className="font-bold text-gray-900 mt-0.5">
+                        {currentUser.subscriptionStatus === "active" ? "نشط" :
+                         currentUser.subscriptionStatus === "awaiting_approval" ? "في انتظار الموافقة" :
+                         currentUser.subscriptionStatus === "pending" ? "قيد الانتظار" :
+                         currentUser.subscriptionStatus === "rejected" ? "مرفوض" : "غير محدد"}
+                      </p>
+                    </div>
+                    <div>
+                      {currentUser.subscriptionStatus === "active" ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-green-700 bg-green-100 rounded-full">
+                          <CheckCircle className="h-4 w-4" />
+                          مفعل
+                        </span>
+                      ) : currentUser.subscriptionStatus === "awaiting_approval" ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-amber-700 bg-amber-100 rounded-full">
+                          <Clock className="h-4 w-4" />
+                          قيد المراجعة
+                        </span>
+                      ) : currentUser.subscriptionStatus === "pending" ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-blue-700 bg-blue-100 rounded-full">
+                          <Clock className="h-4 w-4" />
+                          لم يدفع بعد
+                        </span>
+                      ) : currentUser.subscriptionStatus === "rejected" ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-red-700 bg-red-100 rounded-full">
+                          <XCircle className="h-4 w-4" />
+                          مرفوض
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-gray-700 bg-gray-100 rounded-full">
+                          <AlertCircle className="h-4 w-4" />
+                          غير محدد
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div> */}
+
+                {/* ✅ حالة اشتراك الأبناء من المعاملات */}
+                {childrenList.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-200 p-5">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
-                        <CreditCard className="h-5 w-5 text-teal-600" />
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                        <Users className="h-5 w-5 text-blue-600" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">حالة الاشتراك</h3>
-                        <p className="text-xs text-gray-500">حالة اشتراكك في المنصة</p>
+                        <h3 className="font-semibold text-gray-900">اشتراكات الأبناء</h3>
+                        <p className="text-xs text-gray-500">حالة اشتراك كل ابن في المنصة</p>
                       </div>
                     </div>
                     
-                    <div className="flex items-center justify-between p-4 rounded-xl border">
-                      <div>
-                        <p className="text-sm text-gray-500">حالة الاشتراك</p>
-                        <p className="font-bold text-gray-900 mt-0.5">
-                          {currentUser.subscriptionStatus === "active" ? "نشط" :
-                           currentUser.subscriptionStatus === "awaiting_approval" ? "في انتظار الموافقة" :
-                           currentUser.subscriptionStatus === "pending" ? "قيد الانتظار" :
-                           currentUser.subscriptionStatus === "rejected" ? "مرفوض" : "غير محدد"}
-                        </p>
-                      </div>
-                      <div>
-                        {currentUser.subscriptionStatus === "active" ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-green-700 bg-green-100 rounded-full">
-                            <CheckCircle className="h-4 w-4" />
-                            مفعل
-                          </span>
-                        ) : currentUser.subscriptionStatus === "awaiting_approval" ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-amber-700 bg-amber-100 rounded-full">
-                            <Clock className="h-4 w-4" />
-                            قيد المراجعة
-                          </span>
-                        ) : currentUser.subscriptionStatus === "pending" ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-blue-700 bg-blue-100 rounded-full">
-                            <Clock className="h-4 w-4" />
-                            لم يدفع بعد
-                          </span>
-                        ) : currentUser.subscriptionStatus === "rejected" ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-red-700 bg-red-100 rounded-full">
-                            <XCircle className="h-4 w-4" />
-                            مرفوض
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-gray-700 bg-gray-100 rounded-full">
-                            <AlertCircle className="h-4 w-4" />
-                            غير محدد
-                          </span>
-                        )}
-                      </div>
+                    <div className="space-y-3">
+                      {childrenList.map((child: any) => {
+                        const childTxs = getChildTransactions(child._id);
+                        const sortedTxs = [...childTxs].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                        const latestTx = sortedTxs[0];
+                        
+                        const isActive = latestTx?.status === "completed" || latestTx?.status === "approved";
+                        const isPending = latestTx?.status === "pending";
+                        const isRejected = latestTx?.status === "rejected" || latestTx?.status === "failed";
+                        
+                        const totalPaidChild = childTxs
+                          .filter((t: any) => t.status === "completed" || t.status === "approved")
+                          .reduce((s: number, t: any) => s + (t.amount || 0), 0);
+                        
+                        return (
+                          <div
+                            key={child._id}
+                            className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-teal-300 transition-all"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full bg-teal-100 flex items-center justify-center">
+                                <span className="text-teal-700 font-bold text-sm">
+                                  {child.name?.charAt(0)}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900 text-sm">{child.name}</p>
+                                <p className="text-xs text-gray-400">{child.studentId || "رقم غير محدد"}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              {isActive && (
+                                <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  مدفوع
+                                </span>
+                              )}
+                              {isPending && (
+                                <span className="text-xs text-amber-600 font-medium flex items-center gap-1">
+                                  <Clock className="h-3.5 w-3.5" />
+                                  قيد المراجعة
+                                </span>
+                              )}
+                              {isRejected && (
+                                <span className="text-xs text-red-600 font-medium flex items-center gap-1">
+                                  <XCircle className="h-3.5 w-3.5" />
+                                  مرفوض
+                                </span>
+                              )}
+                              {!isActive && !isPending && !isRejected && (
+                                <span className="text-xs text-gray-400 font-medium flex items-center gap-1">
+                                  <AlertCircle className="h-3.5 w-3.5" />
+                                  لم يدفع
+                                </span>
+                              )}
+                              {totalPaidChild > 0 && (
+                                <span className="text-xs text-gray-500">
+                                  {totalPaidChild} ج.م
+                                </span>
+                              )}
+                              {childTxs.length > 0 && (
+                                <span className="text-xs text-gray-400">
+                                  ({childTxs.length} معاملة)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
+                )}
 
-                  {/* ✅ حالة اشتراك الأبناء */}
-                  {childrenList.length > 0 && (
-                    <div className="bg-white rounded-xl border border-gray-200 p-5">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                          <Users className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">اشتراكات الأبناء</h3>
-                          <p className="text-xs text-gray-500">حالة اشتراك كل ابن في المنصة</p>
-                        </div>
+                {/* ✅ تفاصيل المعاملات للطالب المحدد */}
+                {selectedStudentId ? (
+                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
+                        <Receipt className="h-5 w-5 text-purple-600" />
                       </div>
-                      
+                      <div>
+                        <h3 className="font-semibold text-gray-900">تفاصيل المعاملات</h3>
+                        <p className="text-xs text-gray-500">
+                          {selectedChild?.name} — {studentTransactions.length} معاملة
+                        </p>
+                      </div>
+                    </div>
+
+                    {studentTransactions.length === 0 ? (
+                      <p className="text-center text-gray-400 py-6">
+                        لا توجد معاملات للطالب {selectedChild?.name}
+                      </p>
+                    ) : (
                       <div className="space-y-3">
-                        {childrenList.map((child: any) => {
-                          const childPayment = paymentList.find(
-                            (p: any) => p.studentId === child._id
-                          );
-                          
-                          const isActive = child.subscriptionStatus === "active" || childPayment?.status === "completed";
-                          const isPending = child.subscriptionStatus === "awaiting_approval" || childPayment?.status === "pending";
-                          const isRejected = child.subscriptionStatus === "rejected" || childPayment?.status === "failed";
-                          
+                        {studentTransactions.map((tx: any) => {
+                          const StatusIcon = statusLabels[tx.status]?.icon || AlertCircle;
                           return (
                             <div
-                              key={child._id}
-                              className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-teal-300 transition-all"
+                              key={tx._id}
+                              className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-purple-200 transition-all"
                             >
                               <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-full bg-teal-100 flex items-center justify-center">
-                                  <span className="text-teal-700 font-bold text-sm">
-                                    {child.name?.charAt(0)}
-                                  </span>
-                                </div>
+                                <span className="text-xl">{typeIcons[tx.type] || "💳"}</span>
                                 <div>
-                                  <p className="font-medium text-gray-900 text-sm">{child.name}</p>
-                                  <p className="text-xs text-gray-400">{child.studentId || "رقم غير محدد"}</p>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {tx.descriptionAr || tx.description || "معاملة"}
+                                  </p>
+                                  <p className="text-xs text-gray-400 flex items-center gap-2">
+                                    <span>{typeLabels[tx.type] || tx.type}</span>
+                                    <span>•</span>
+                                    <span>{formatDate(tx.createdAt)}</span>
+                                    {tx.teacherName && (
+                                      <>
+                                        <span>•</span>
+                                        <span>المعلم: {tx.teacherName}</span>
+                                      </>
+                                    )}
+                                  </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-3">
-                                {isActive && (
-                                  <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                                    <CheckCircle className="h-3.5 w-3.5" />
-                                    مدفوع
-                                  </span>
-                                )}
-                                {isPending && (
-                                  <span className="text-xs text-amber-600 font-medium flex items-center gap-1">
-                                    <Clock className="h-3.5 w-3.5" />
-                                    قيد المراجعة
-                                  </span>
-                                )}
-                                {isRejected && (
-                                  <span className="text-xs text-red-600 font-medium flex items-center gap-1">
-                                    <XCircle className="h-3.5 w-3.5" />
-                                    مرفوض
-                                  </span>
-                                )}
-                                {!isActive && !isPending && !isRejected && (
-                                  <span className="text-xs text-gray-400 font-medium flex items-center gap-1">
-                                    <AlertCircle className="h-3.5 w-3.5" />
-                                    لم يدفع
-                                  </span>
-                                )}
-                                {childPayment && (
-                                  <span className="text-xs text-gray-400">
-                                    {childPayment.amount} {childPayment.currency}
-                                  </span>
-                                )}
+                              <div className="text-left flex items-center gap-3">
+                                <span className="text-sm font-bold text-gray-900">
+                                  {tx.amount} {tx.currency || "ج.م"}
+                                </span>
+                                <span className={`text-xs px-2 py-1 rounded-full ${statusLabels[tx.status]?.cls || "bg-gray-100 text-gray-600"}`}>
+                                  {statusLabels[tx.status]?.label || tx.status}
+                                </span>
                               </div>
                             </div>
                           );
                         })}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl border border-gray-200 p-5 text-center">
+                    <p className="text-gray-400">اختر طالباً لعرض تفاصيل معاملاته</p>
+                  </div>
+                )}
 
-                  {/* ✅ ملخص سريع */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-green-50 rounded-xl p-4 border border-green-200">
-                      <p className="text-xs text-green-600 font-medium">المدفوع</p>
-                      <p className="text-xl font-bold text-green-700 mt-1">
-                        {paymentList.filter((p: any) => p.status === "completed").length}
-                      </p>
-                      <p className="text-xs text-green-500">اشتراكات مكتملة</p>
-                    </div>
-                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
-                      <p className="text-xs text-amber-600 font-medium">قيد الانتظار</p>
-                      <p className="text-xl font-bold text-amber-700 mt-1">
-                        {paymentList.filter((p: any) => p.status === "pending").length}
-                      </p>
-                      <p className="text-xs text-amber-500">اشتراكات قيد المراجعة</p>
-                    </div>
+                {/* ✅ ملخص سريع */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                    <p className="text-xs text-green-600 font-medium">المدفوع</p>
+                    <p className="text-xl font-bold text-green-700 mt-1">
+                      {allTransactions.filter((t: any) => t.status === "completed" || t.status === "approved").length}
+                    </p>
+                    <p className="text-xs text-green-500">معاملات مكتملة</p>
+                  </div>
+                  <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+                    <p className="text-xs text-amber-600 font-medium">قيد الانتظار</p>
+                    <p className="text-xl font-bold text-amber-700 mt-1">
+                      {allTransactions.filter((t: any) => t.status === "pending").length}
+                    </p>
+                    <p className="text-xs text-amber-500">معاملات قيد المراجعة</p>
+                  </div>
+                  <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+                    <p className="text-xs text-red-600 font-medium">مرفوض / فشل</p>
+                    <p className="text-xl font-bold text-red-700 mt-1">
+                      {allTransactions.filter((t: any) => t.status === "rejected" || t.status === "failed").length}
+                    </p>
+                    <p className="text-xs text-red-500">معاملات مرفوضة</p>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>

@@ -564,6 +564,183 @@ export const updatePaymentStatus = mutation({
   },
 });
 
+
+// ✅ جلب أبناء ولي الأمر
+export const getParentChildren = query({
+  args: {
+    parentId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("غير مصرح");
+
+    const currentUser = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!currentUser) throw new Error("المستخدم غير موجود");
+
+    // ✅ التحقق من الصلاحية: ولي الأمر نفسه أو أدمن
+    const isAdmin = currentUser.role === "admin";
+    const isSelf = currentUser._id === args.parentId;
+
+    if (!isAdmin && !isSelf) {
+      throw new Error("غير مصرح: يمكنك فقط رؤية أبنائك");
+    }
+
+    // ✅ جلب روابط الأبناء
+    const links = await ctx.db
+      .query("parentStudentLinks")
+      .withIndex("by_parent", (q) => q.eq("parentId", args.parentId))
+      .collect();
+
+    // ✅ جلب بيانات الطلاب مع معلومات الصف والمجموعة
+    const children = await Promise.all(
+      links.map(async (link) => {
+        const student = await ctx.db.get(link.studentId);
+        if (!student) return null;
+
+        // ✅ جلب اسم الصف
+        let gradeName = "غير محدد";
+        if (student.gradeId) {
+          const grade = await ctx.db.get(student.gradeId);
+          if (grade) gradeName = grade.name || "غير محدد";
+        } else if (student.grade) {
+          gradeName = student.grade;
+        }
+
+        // ✅ جلب اسم المجموعة
+        let groupName = "غير محدد";
+        if (student.groupId) {
+          const group = await ctx.db.get(student.groupId);
+          if (group) groupName = group.name || "غير محدد";
+        }
+
+        return {
+          _id: student._id,
+          name: student.name,
+          email: student.email,
+          phoneNumber: student.phoneNumber,
+          studentId: student.studentId,
+          gradeName,
+          gradeId: student.gradeId,
+          groupName,
+          groupId: student.groupId,
+          birthDate: student.birthDate,
+          gender: student.gender,
+          status: student.status || "pending",
+          relationship: link.relationship,
+          isPrimary: link.isPrimary,
+          permissions: link.permissions,
+          createdAt: student.createdAt,
+          updatedAt: student.updatedAt,
+        };
+      })
+    );
+
+    return children.filter(Boolean);
+  },
+});
+
+
+
+// ✅ جلب معاملات الأبناء (بديل عن getChildrenTransactions)
+export const getChildrenWithTransactions = query({
+  args: {
+    parentId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("غير مصرح");
+
+    const parent = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!parent || parent.role !== "parent") {
+      throw new Error("مطلوب صلاحيات ولي أمر");
+    }
+
+    // ✅ جلب الأبناء
+    const links = await ctx.db
+      .query("parentStudentLinks")
+      .withIndex("by_parent", (q) => q.eq("parentId", args.parentId))
+      .collect();
+
+    const childIds = links.map(l => l.studentId);
+
+    // ✅ جلب بيانات الأبناء
+    const children = await Promise.all(
+      childIds.map(async (id) => {
+        const user = await ctx.db.get(id);
+        return user;
+      })
+    );
+
+    // ✅ جلب المعاملات لكل ابن
+    const allTransactions = await ctx.db.query("transactions").collect();
+
+    const childrenWithData = await Promise.all(
+      children.map(async (child) => {
+        if (!child) return null;
+
+        // ✅ جلب معاملات هذا الطفل
+        const childTransactions = allTransactions.filter(
+          (t) => t.studentId === child._id
+        );
+
+        // ✅ جلب طلبات القدرات
+        const aptitudePurchases = await ctx.db
+          .query("aptitudePurchases")
+          .withIndex("by_studentId", (q) => q.eq("studentId", child._id))
+          .collect();
+
+        // ✅ جلب طلبات التحصيلي
+        const academicPurchases = await ctx.db
+          .query("academicPurchases")
+          .withIndex("by_studentId", (q) => q.eq("studentId", child._id))
+          .collect();
+
+        // ✅ دمج الكل
+        const allMerged = [
+          ...childTransactions,
+          ...aptitudePurchases.map((p) => ({ ...p, type: "aptitude" })),
+          ...academicPurchases.map((p) => ({ ...p, type: "academic" })),
+        ];
+
+        // ✅ ترتيب من الأحدث
+        allMerged.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        // ✅ حساب الإحصائيات
+        const totalPaid = allMerged
+          .filter((t) => t.status === "completed" || t.status === "approved")
+          .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+        const totalPending = allMerged
+          .filter((t) => t.status === "pending")
+          .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+        return {
+          ...child,
+          transactions: allMerged,
+          paymentStats: {
+            totalPaid,
+            totalPending,
+            count: allMerged.length,
+          },
+          subscriptionStatus: allMerged.length > 0 ? 
+            (allMerged[0]?.status === "completed" || allMerged[0]?.status === "approved" ? "active" : "pending") 
+            : "inactive",
+        };
+      })
+    );
+
+    return childrenWithData.filter(Boolean);
+  },
+});
+
 // ✅ تصدير الدوال
 export const parents = {
   createParent,
@@ -576,4 +753,6 @@ export const parents = {
   getPayments,
   createPayment,
   updatePaymentStatus,
+  getParentChildren,
+  getChildrenWithTransactions
 };

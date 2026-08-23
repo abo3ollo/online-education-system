@@ -26,7 +26,7 @@ import {
   Briefcase,
   Shield,
 } from "lucide-react";
-import { ChildRegistrationModal } from "@/app/_components/ChildRegistrationModal";
+// import { ChildRegistrationModal } from "@/app/_components/ChildRegistrationModal";
 
 // ── Types ──────────────────────────────────────────────────────────
 type Track = "platform" | "aptitude" | "academic";
@@ -100,7 +100,7 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
 
   // ✅ Flow control flags
-  const [showChildModal, setShowChildModal] = useState(false);
+  // const [showChildModal, setShowChildModal] = useState(false);
 
   // ── Queries ───────────────────────────────────────────────────
   const currentUser = useQuery(
@@ -143,9 +143,9 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (!currentUser) return;
 
-    if (showChildModal) {
-      return;
-    }
+    // if (showChildModal) {
+    //   return;
+    // }
 
     if (currentUser.status === "active" || currentUser.status === "approved") {
       const tracks = (currentUser as any).tracks || [];
@@ -187,18 +187,18 @@ export default function OnboardingPage() {
     if (currentUser.status === "pending") {
       router.replace("/pending-approval");
     }
-  }, [currentUser, showChildModal, router]);
+  }, [currentUser, router]);
 
   // ✅ Handle child registration
-  const handleChildRegistered = useCallback(
-    (childId: string, gradeId: string, childName: string) => {
-      setShowChildModal(false);
+  // const handleChildRegistered = useCallback(
+  //   (childId: string, gradeId: string, childName: string) => {
+  //     setShowChildModal(false);
 
-      // ✅ بعد تسجيل الطفل → روح للصفحة الرئيسية
-      router.push(`/subscription?userId=${childId}&gradeId=${gradeId}&role=parent&childName=${encodeURIComponent(childName)}`);
-    },
-    [router]
-  );
+  //     // ✅ بعد تسجيل الطفل → روح للصفحة الرئيسية
+  //     // router.push(`/subscription?userId=${childId}&gradeId=${gradeId}&role=parent&childName=${encodeURIComponent(childName)}`);
+  //   },
+  //   [router]
+  // );
 
   // ── Form helpers ──────────────────────────────────────────────
   const update = (field: keyof FormData, value: any) =>
@@ -347,7 +347,9 @@ export default function OnboardingPage() {
           // const subscriptionUrl = `/subscription?userId=${newUserId}&gradeId=${formData.gradeId}&role=student`;
           // window.location.href = subscriptionUrl;
         } else if (role === "parent") {
-          setShowChildModal(true);
+          // const  childRegisterationUrl =`/child-registration?parentId=${newUserId}`;
+          // window.location.href = childRegisterationUrl;
+          
         } else if (role === "admin") {
           // ✅ أدمن في الـ Whitelist → يروح admin مباشرة
           if (isWhitelistedAdmin) {
@@ -865,14 +867,14 @@ export default function OnboardingPage() {
       </div>
 
       {/* ✅ Child Registration Modal */}
-      <ChildRegistrationModal
+      {/* <ChildRegistrationModal
         isOpen={showChildModal}
         onClose={() => {
           setShowChildModal(false);
         }}
         parentId={currentUser?._id || ""}
         onSuccess={handleChildRegistered}
-      />
+      /> */}
     </>
   );
 }

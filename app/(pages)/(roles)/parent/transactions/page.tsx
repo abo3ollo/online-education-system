@@ -30,13 +30,13 @@ export default function ParentTransactionsPage() {
   
   // ✅ جلب أبناء ولي الأمر
   const children = useQuery(
-      api.relationships.parentStudent.getChildrenByParent,
-      currentUser?._id
-        ? { parentId: currentUser._id as Id<"users"> }
-        : "skip"
-    );
+    api.relationships.parentStudent.getChildrenByParent,
+    currentUser?._id
+      ? { parentId: currentUser._id as Id<"users"> }
+      : "skip"
+  );
 
-  // ✅ جلب معاملات الأبناء
+  // ✅ جلب معاملات الأبناء باستخدام الدالة المحسّنة
   const transactions = useQuery(
     api.transactions.transactions.getChildrenTransactions,
     currentUser?._id ? {
@@ -47,6 +47,7 @@ export default function ParentTransactionsPage() {
     } : "skip"
   );
 
+  // ✅ جلب الإحصائيات
   const stats = useQuery(
     api.transactions.transactions.getTransactionStats,
     currentUser?._id ? { parentId: currentUser._id as Id<"users"> } : "skip"
@@ -67,8 +68,13 @@ export default function ParentTransactionsPage() {
     }
   }, [isLoaded, isSignedIn, currentUser, router]);
 
+  // ✅ دالة التحديث
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
   // حالة التحميل
-  if (!isLoaded || transactions === undefined || stats === undefined || currentUser === undefined) {
+  if (!isLoaded || currentUser === undefined) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-[#1a7a8a]" />
@@ -76,10 +82,25 @@ export default function ParentTransactionsPage() {
     );
   }
 
+  // ✅ تحويل بيانات الأطفال إلى خيارات
   const childOptions = children?.map((child: any) => ({
     value: child._id,
     label: child.name,
-  }));
+  })) || [];
+
+  // ✅ فلترة المعاملات حسب البحث
+  const filteredTransactions = transactions?.filter((tx: any) => {
+    if (!searchQuery.trim()) return true;
+    const search = searchQuery.toLowerCase().trim();
+    const description = (tx.descriptionAr || tx.description || "").toLowerCase();
+    const studentName = (tx.studentName || "").toLowerCase();
+    const type = (tx.type || "").toLowerCase();
+    const status = (tx.status || "").toLowerCase();
+    return description.includes(search) || 
+           studentName.includes(search) || 
+           type.includes(search) || 
+           status.includes(search);
+  }) || [];
 
   return (
     <div className="min-h-screen bg-[#f7fafa]" dir="rtl">
@@ -97,7 +118,7 @@ export default function ParentTransactionsPage() {
           </div>
           <Button
             variant="outline"
-            onClick={() => window.location.reload()}
+            onClick={handleRefresh}
             className="gap-2"
           >
             <RefreshCw className="h-4 w-4" />
@@ -107,33 +128,42 @@ export default function ParentTransactionsPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-        {/* ✅ اختيار الابن - استخدام select عادي */}
-        <div className="flex items-center gap-4">
-          <Users className="h-5 w-5 text-gray-400" />
+        {/* ✅ اختيار الابن */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-gray-400" />
+            <span className="text-sm text-gray-600">عرض بيانات:</span>
+          </div>
           <select
             value={selectedChildId}
             onChange={(e) => setSelectedChildId(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1a7a8a]/20 focus:border-[#1a7a8a]"
           >
             <option value="all">جميع الأبناء</option>
-            {childOptions?.map((child: any) => (
+            {childOptions.map((child: any) => (
               <option key={child.value} value={child.value}>
                 {child.label}
               </option>
             ))}
           </select>
+          {selectedChildId !== "all" && (
+            <span className="text-xs text-gray-400">
+              ({filteredTransactions.length} معاملة)
+            </span>
+          )}
         </div>
 
         {/* ✅ الإحصائيات */}
-        <TransactionStats stats={stats} currency="EGP" lang={lang} />
+        {stats && <TransactionStats stats={stats} currency="EGP" lang={lang} />}
 
         {/* ✅ الفلاتر */}
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex-1 min-w-50 relative">
+          <div className="flex-1 min-w-50">
             <Input
-              placeholder="بحث..."
+              placeholder="بحث في المعاملات..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full"
             />
           </div>
           <select
@@ -142,8 +172,9 @@ export default function ParentTransactionsPage() {
             className="px-4 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1a7a8a]/20 focus:border-[#1a7a8a]"
           >
             <option value="all">جميع الأنواع</option>
-            <option value="platform">منصة أونلاين</option>
-            <option value="aptitude">تحصيلات</option>
+            <option value="platform">منصة</option>
+            <option value="aptitude">قدرات</option>
+            <option value="academic">تحصيلي</option>
             <option value="purchase">مشتريات</option>
           </select>
           <select
@@ -154,24 +185,76 @@ export default function ParentTransactionsPage() {
             <option value="all">جميع الحالات</option>
             <option value="pending">قيد المراجعة</option>
             <option value="completed">مكتمل</option>
+            <option value="approved">موافق عليه</option>
+            <option value="rejected">مرفوض</option>
+            <option value="failed">فشل</option>
             <option value="refunded">مرتجع</option>
-            <option value="failed">فاشل</option>
           </select>
+          {(searchQuery || typeFilter !== "all" || statusFilter !== "all") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchQuery("");
+                setTypeFilter("all");
+                setStatusFilter("all");
+              }}
+              className="text-gray-500"
+            >
+              مسح الفلاتر
+            </Button>
+          )}
         </div>
 
         {/* ✅ جدول المعاملات */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <TransactionsTable
-            transactions={transactions}
-            onViewDetails={(transaction) => {
-              setSelectedTransaction(transaction);
-              setIsDetailsOpen(true);
-            }}
-            showStudent={true}
-            showActions={false}
-            lang={lang}
-          />
+          {transactions === undefined ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-[#1a7a8a]" />
+            </div>
+          ) : filteredTransactions.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-4xl mb-3">📭</div>
+              <p className="text-gray-500">
+                {searchQuery || typeFilter !== "all" || statusFilter !== "all"
+                  ? "لا توجد معاملات تطابق معايير البحث"
+                  : "لا توجد معاملات للأبناء"}
+              </p>
+              {(searchQuery || typeFilter !== "all" || statusFilter !== "all") && (
+                <Button
+                  variant="link"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setTypeFilter("all");
+                    setStatusFilter("all");
+                  }}
+                  className="mt-2"
+                >
+                  عرض جميع المعاملات
+                </Button>
+              )}
+            </div>
+          ) : (
+            <TransactionsTable
+              transactions={filteredTransactions}
+              onViewDetails={(transaction) => {
+                setSelectedTransaction(transaction);
+                setIsDetailsOpen(true);
+              }}
+              showStudent={true}
+              showActions={false}
+              lang={lang}
+            />
+          )}
         </div>
+
+        {/* ✅ عدد النتائج */}
+        {filteredTransactions.length > 0 && (
+          <div className="text-sm text-gray-400 text-center">
+            عرض {filteredTransactions.length} معاملة
+            {selectedChildId !== "all" && ` للطالب المحدد`}
+          </div>
+        )}
       </div>
 
       {/* ✅ مودال التفاصيل */}

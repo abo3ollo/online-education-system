@@ -920,17 +920,25 @@ export const getPendingStudents = query({
   },
 });
 
-// convex/user/students.ts - أضف هذه الدالة
 
-// ✅ جلب الطلاب الذين ليس لديهم ولي أمر (متاحة للجميع)
+
+
+// ✅ جلب الطلاب الذين ليس لديهم ولي أمر (بدون التحقق من الدور)
 export const getStudentsWithoutParent = query({
   args: {
     search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // ✅ فقط نتحقق من هوية المستخدم
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("غير مصرح");
+
+    // ✅ فقط تحقق من أن المستخدم مسجل
+    const currentUser = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!currentUser) throw new Error("المستخدم غير موجود");
 
     // ✅ جلب جميع الطلاب
     const allStudents = await ctx.db
@@ -947,15 +955,17 @@ export const getStudentsWithoutParent = query({
 
     // ✅ تصفية الطلاب الذين ليس لديهم ولي أمر
     let availableStudents = allStudents.filter(
-      student => !linkedStudentIds.has(student._id) && student.status !== "rejected"
+      student => !linkedStudentIds.has(student._id) && 
+      student.status !== "rejected" &&
+      student.status !== "inactive"
     );
 
     // ✅ بحث
     if (args.search && args.search.trim() !== "") {
       const searchLower = args.search.toLowerCase();
       availableStudents = availableStudents.filter(student =>
-        student.name.toLowerCase().includes(searchLower) ||
-        student.email.toLowerCase().includes(searchLower) ||
+        student.name?.toLowerCase().includes(searchLower) ||
+        student.email?.toLowerCase().includes(searchLower) ||
         student.studentId?.toLowerCase().includes(searchLower)
       );
     }

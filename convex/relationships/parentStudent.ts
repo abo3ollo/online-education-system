@@ -340,3 +340,73 @@ export const getAllParentStudentLinks = query({
     return fullLinks;
   },
 });
+
+// ✅ إزالة طفل من أبناء ولي الأمر
+export const removeChild = mutation({
+  args: {
+    parentId: v.id("users"),
+    studentId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("غير مصرح");
+
+    const currentUser = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!currentUser) throw new Error("المستخدم غير موجود");
+
+    // ✅ التحقق من الصلاحية: ولي الأمر نفسه أو أدمن
+    const isAdmin = currentUser.role === "admin";
+    const isSelf = currentUser._id === args.parentId;
+
+    if (!isAdmin && !isSelf) {
+      throw new Error("غير مصرح: يمكنك فقط إزالة أبنائك");
+    }
+
+    // ✅ البحث عن الرابط
+    const link = await ctx.db
+      .query("parentStudentLinks")
+      .withIndex("by_parent_student", (q) =>
+        q.eq("parentId", args.parentId).eq("studentId", args.studentId)
+      )
+      .first();
+
+    if (!link) {
+      throw new Error("الرابط غير موجود");
+    }
+
+    // ✅ حذف الرابط
+    await ctx.db.delete(link._id);
+
+    // ✅ تسجيل في سجل التدقيق
+    await ctx.db.insert("auditLogs", {
+      userId: currentUser._id,
+      action: "REMOVE_CHILD",
+      resourceType: "parentStudentLink",
+      resourceId: link._id,
+      details: {
+        parentId: args.parentId,
+        studentId: args.studentId,
+
+      },
+      createdAt: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
+
+// ✅ تصدير الدوال
+export const parentStudent = {
+  linkParentToStudent,
+  unlinkParentFromStudent,
+  getChildrenByParent,
+  getParentsByStudent,
+  updateParentPermissions,
+  getAllParentStudentLinks,
+  removeChild, // ✅ أضف هذه الدالة
+};

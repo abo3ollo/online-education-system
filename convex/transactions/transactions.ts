@@ -478,7 +478,9 @@ export const getTransactionStats = query({
   },
 });
 
-// ── جلب معاملات أبناء ولي الأمر ──────────────────────────────
+// convex/transactions/transactions.ts
+
+// ✅ جلب معاملات أبناء ولي الأمر (محسّن بالكامل)
 export const getChildrenTransactions = query({
   args: {
     parentId: v.id("users"),
@@ -519,83 +521,222 @@ export const getChildrenTransactions = query({
       throw new Error("غير مصرح: يمكنك فقط رؤية معاملات أبنائك");
     }
 
-    // ✅ جلب جميع المعاملات من جميع المصادر
-    const platformTransactions = await ctx.db
-      .query("transactions")
-      .withIndex("by_parent", (q) => q.eq("parentId", args.parentId))
-      .order("desc")
-      .collect();
-
-    // ✅ جلب طلبات القدرات والتحصيلي (بدون فلترة parentId لأن الجدولين لا يحتويان على parentId)
-    const aptitudePurchases = await ctx.db
-      .query("aptitudePurchases")
-      .withIndex("by_studentId")
-      .collect();
-    
-    const academicPurchases = await ctx.db
-      .query("academicPurchases")
-      .withIndex("by_studentId")
-      .collect();
-
-    // ✅ فلترة حسب ولي الأمر - نأخذ الطلاب المرتبطين بولي الأمر
-    // ملاحظة: بما أن aptitudePurchases و academicPurchases لا يحتويان على parentId،
-    // نفترض أن ولي الأمر يرى معاملات أبنائه عبر studentId
-    // لذلك نأخذ جميع الطلاب الذين هم أبناء ولي الأمر
+    // ✅ 1. جلب جميع أبناء ولي الأمر
     const children = await ctx.db
       .query("users")
       .withIndex("by_parentId", (q) => q.eq("parentId", args.parentId))
       .collect();
 
-    const childIds = children.map(c => c._id);
+    // ✅ 2. أيضاً جلب الأبناء من جدول parentStudentLinks
+    const links = await ctx.db
+      .query("parentStudentLinks")
+      .withIndex("by_parent", (q) => q.eq("parentId", args.parentId))
+      .collect();
 
-    // ✅ فلترة طلبات القدرات والتحصيلي حسب أبناء ولي الأمر
-    const aptitudeFiltered = aptitudePurchases.filter((p) => childIds.includes(p.studentId));
-    const academicFiltered = academicPurchases.filter((p) => childIds.includes(p.studentId));
+    const linkedChildIds = links.map(l => l.studentId);
 
-    // ✅ تحويل إلى معاملات
-    let allTransactions = [
-      ...platformTransactions,
-      ...aptitudeFiltered.map((p) => ({ ...p, type: "aptitude" })),
-      ...academicFiltered.map((p) => ({ ...p, type: "academic" })),
-    ];
+    // ✅ دمج المعرفات (مع تجنب التكرار)
+    const allChildIds = new Set([
+      ...children.map(c => c._id),
+      ...linkedChildIds
+    ]);
 
-    // ✅ فلترة حسب الطفل
-    if (args.childId) {
-      allTransactions = allTransactions.filter((t) => t.studentId === args.childId);
-    }
+    // ✅ 3. جلب جميع المعاملات من جدول transactions
+    const allTransactions = await ctx.db.query("transactions").collect();
 
-    // ✅ فلترة حسب النوع
-    if (args.type) {
-      allTransactions = allTransactions.filter((t) => t.type === args.type);
-    }
+    // ✅ 4. فلترة المعاملات التي تخص أبناء ولي الأمر
+    let filtered = allTransactions.filter((t) => 
+      allChildIds.has(t.studentId)
+    );
 
-    // ✅ فلترة حسب الحالة
-    if (args.status) {
-      allTransactions = allTransactions.filter((t) => t.status === args.status);
-    }
+    // ✅ 5. أيضاً جلب المعاملات التي تحتوي على parentId مباشرة
+    const parentTransactions = allTransactions.filter((t) => 
+      t.parentId === args.parentId
+    );
 
-    // ✅ فلترة حسب التاريخ
-    if (args.startDate) {
-      allTransactions = allTransactions.filter((t) => t.createdAt >= args.startDate!);
-    }
-    if (args.endDate) {
-      allTransactions = allTransactions.filter((t) => t.createdAt <= args.endDate!);
-    }
+    // ✅ دمج الكل مع تجنب التكرار
+    const mergedById = new Map();
+    [...filtered, ...parentTransactions].forEach(t => {
+      if (!mergedById.has(t._id)) {
+        mergedById.set(t._id, t);
+      }
+    });
+    filtered = Array.from(mergedById.values());
 
-    // ✅ إضافة أسماء الطلاب
-    const transactionsWithStudents = await Promise.all(
-      allTransactions.map(async (t) => {
-        const student = await ctx.db.get(t.studentId);
+    // ✅ 6. جلب طلبات القدرات والتحصيلي
+    const aptitudePurchases = await ctx.db
+      .query("aptitudePurchases")
+      .collect();
+    
+    const academicPurchases = await ctx.db
+      .query("academicPurchases")
+      .collect();
+
+    // ✅ فلترة حسب أبناء ولي الأمر
+    const aptitudeFiltered = aptitudePurchases.filter((p) => 
+      allChildIds.has(p.studentId)
+    );
+    const academicFiltered = academicPurchases.filter((p) => 
+      allChildIds.has(p.studentId)
+    );
+
+    // ✅ 7. جلب أسماء المعلمين لطلبات القدرات والتحصيلي
+    const aptitudeWithTeachers = await Promise.all(
+      aptitudeFiltered.map(async (p) => {
+        let teacherName = "";
+        if (p.teacherId) {
+          const teacher = await ctx.db.get(p.teacherId);
+          if (teacher && 'name' in teacher) {
+            teacherName = (teacher as any).name || "";
+          }
+        }
         return {
-          ...t,
-          studentName: student?.name || "غير معروف",
-          studentEmail: student?.email || "",
-          studentGrade: student?.grade || "غير محدد",
+          ...p,
+          teacherName,
         };
       })
     );
 
-    return transactionsWithStudents.sort((a, b) => b.createdAt - a.createdAt);
+    const academicWithTeachers = await Promise.all(
+      academicFiltered.map(async (p) => {
+        let teacherName = "";
+        if (p.teacherId) {
+          const teacher = await ctx.db.get(p.teacherId);
+          if (teacher && 'name' in teacher) {
+            teacherName = (teacher as any).name || "";
+          }
+        }
+        return {
+          ...p,
+          teacherName,
+        };
+      })
+    );
+
+    // ✅ 8. دمج جميع المعاملات مع إنشاء الحقول المفقودة
+    let allMerged: any[] = [
+      // معاملات المنصة
+      ...filtered.map(t => ({
+        ...t,
+        teacherName: "",
+        typeLabel: t.type,
+        descriptionAr: t.descriptionAr || t.description || "معاملة منصة",
+        description: t.description || t.descriptionAr || "Platform transaction",
+      })),
+      // طلبات القدرات
+      ...aptitudeWithTeachers.map((p) => ({ 
+        ...p, 
+        type: "aptitude" as const,
+        description: `شراء مواد قدرات${p.teacherName ? ` - ${p.teacherName}` : ''}`,
+        descriptionAr: `شراء مواد قدرات${p.teacherName ? ` - ${p.teacherName}` : ''}`,
+        amount: p.amount || 0,
+        currency: "EGP",
+        status: p.status || "pending",
+        createdAt: p.createdAt || Date.now(),
+        referenceId: p._id,
+        referenceType: "aptitude_purchase",
+        category: "القدرات",
+        typeLabel: "aptitude",
+        studentId: p.studentId,
+        parentId: args.parentId,
+      })),
+      // طلبات التحصيلي
+      ...academicWithTeachers.map((p) => ({ 
+        ...p, 
+        type: "academic" as const,
+        description: `شراء مواد تحصيلي${p.teacherName ? ` - ${p.teacherName}` : ''}`,
+        descriptionAr: `شراء مواد تحصيلي${p.teacherName ? ` - ${p.teacherName}` : ''}`,
+        amount: p.amount || 0,
+        currency: p.currency || "EGP",
+        status: p.status || "pending",
+        createdAt: p.createdAt || Date.now(),
+        referenceId: p._id,
+        referenceType: "academic_purchase",
+        category: "التحصيلي",
+        typeLabel: "academic",
+        studentId: p.studentId,
+        parentId: args.parentId,
+      })),
+    ];
+
+    // ✅ 9. فلترة حسب الطفل المحدد
+    if (args.childId) {
+      allMerged = allMerged.filter((t) => t.studentId === args.childId);
+    }
+
+    // ✅ 10. فلترة حسب النوع
+    if (args.type) {
+      allMerged = allMerged.filter((t) => t.type === args.type);
+    }
+
+    // ✅ 11. فلترة حسب الحالة
+    if (args.status) {
+      allMerged = allMerged.filter((t) => t.status === args.status);
+    }
+
+    // ✅ 12. فلترة حسب التاريخ
+    if (args.startDate) {
+      allMerged = allMerged.filter((t) => (t.createdAt || 0) >= args.startDate!);
+    }
+    if (args.endDate) {
+      allMerged = allMerged.filter((t) => (t.createdAt || 0) <= args.endDate!);
+    }
+
+    // ✅ 13. إضافة أسماء الطلاب
+    const transactionsWithDetails = await Promise.all(
+      allMerged.map(async (t) => {
+        let studentName = "غير معروف";
+        let studentEmail = "";
+        let studentGrade = "غير محدد";
+        
+        try {
+          const student = await ctx.db.get(t.studentId);
+          if (student) {
+            // ✅ استخدام any لتجاوز مشاكل TypeScript
+            const studentAny = student as any;
+            studentName = studentAny.name || "غير معروف";
+            studentEmail = studentAny.email || "";
+            studentGrade = studentAny.grade || "غير محدد";
+          }
+        } catch (e) {
+          // تجاهل الأخطاء
+        }
+
+        // ✅ تحديد النوع بالعربي
+        const typeMap: Record<string, string> = {
+          platform: "منصة",
+          aptitude: "قدرات",
+          academic: "تحصيلي",
+          purchase: "مشتريات",
+        };
+
+        // ✅ تحديد الحالة بالعربي
+        const statusMap: Record<string, string> = {
+          pending: "قيد المراجعة",
+          completed: "مكتمل",
+          approved: "موافق عليه",
+          rejected: "مرفوض",
+          refunded: "مرتجع",
+          failed: "فشل",
+        };
+
+        return {
+          ...t,
+          studentName,
+          studentEmail,
+          studentGrade,
+          teacherName: t.teacherName || "",
+          typeLabel: typeMap[t.type] || t.type,
+          statusLabel: statusMap[t.status] || t.status,
+          uniqueId: `${t.type}_${t._id}`,
+        };
+      })
+    );
+
+    // ✅ 14. ترتيب من الأحدث للأقدم
+    return transactionsWithDetails.sort((a, b) => 
+      (b.createdAt || 0) - (a.createdAt || 0)
+    );
   },
 });
 
@@ -843,6 +984,94 @@ export const getStudentStats = query({
   },
 });
 
+// ✅ تحديث parentId للمعاملات بناءً على علاقة ولي الأمر
+export const updateTransactionParentIds = mutation({
+  args: {
+    parentId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("غير مصرح");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!user || user.role !== "admin") {
+      throw new Error("مطلوب صلاحيات مشرف");
+    }
+
+    // ✅ جلب أبناء ولي الأمر
+    const children = await ctx.db
+      .query("users")
+      .withIndex("by_parentId", (q) => q.eq("parentId", args.parentId))
+      .collect();
+
+    const childIds = children.map(c => c._id);
+
+    // ✅ جلب جميع المعاملات التي تخص الأبناء ولكن بدون parentId
+    const allTransactions = await ctx.db.query("transactions").collect();
+    
+    let updatedCount = 0;
+    for (const tx of allTransactions) {
+      if (childIds.includes(tx.studentId) && !tx.parentId) {
+        await ctx.db.patch(tx._id, {
+          parentId: args.parentId,
+          updatedAt: Date.now(),
+        });
+        updatedCount++;
+      }
+    }
+
+    return { success: true, updatedCount };
+  },
+});
+
+// ✅ تحديث parentId لجميع معاملات أبناء ولي الأمر
+export const updateChildrenTransactionsParentId = mutation({
+  args: {
+    parentId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("غير مصرح");
+
+    const admin = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!admin || admin.role !== "admin") {
+      throw new Error("مطلوب صلاحيات مشرف");
+    }
+
+    // ✅ جلب أبناء ولي الأمر
+    const children = await ctx.db
+      .query("users")
+      .withIndex("by_parentId", (q) => q.eq("parentId", args.parentId))
+      .collect();
+
+    const childIds = new Set(children.map(c => c._id));
+
+    // ✅ جلب جميع المعاملات
+    const allTransactions = await ctx.db.query("transactions").collect();
+    
+    let updatedCount = 0;
+    for (const tx of allTransactions) {
+      if (childIds.has(tx.studentId) && !tx.parentId) {
+        await ctx.db.patch(tx._id, {
+          parentId: args.parentId,
+          updatedAt: Date.now(),
+        });
+        updatedCount++;
+      }
+    }
+
+    return { success: true, updatedCount };
+  },
+});
+
 // ✅ تصدير الدوال
 export const transactions = {
   createTransaction,
@@ -855,4 +1084,6 @@ export const transactions = {
   getChildrenTransactions,
   getStudentTransactionsWithDetails,
   getStudentStats,
+  updateTransactionParentIds,
+  updateChildrenTransactionsParentId,
 };
