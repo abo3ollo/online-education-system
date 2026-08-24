@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { LayoutDashboard, Users, CreditCard, Bell, Settings, User, LogOut } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 const navigation = [
   { name: "لوحة التحكم", href: "/parent", icon: LayoutDashboard },
@@ -24,6 +26,8 @@ export default function ParentLayout({
   const pathname = usePathname();
   const { signOut } = useClerk();
   const router = useRouter();
+
+  const currentUser = useQuery(api.user.auth.getCurrentUser);
 
   const handleLogout = async () => {
     await signOut();
@@ -81,7 +85,7 @@ export default function ParentLayout({
           {/* ✅ إضافة معلومات المستخدم */}
           <div className="mt-3 px-4 py-2 rounded-xl bg-gray-50">
             <p className="text-xs text-gray-400">ولي الأمر</p>
-            <p className="text-sm font-medium text-gray-700 truncate">techland2026 systech</p>
+            <p className="text-sm font-medium text-gray-700 truncate"> {currentUser?.name || "..."}</p>
           </div>
         </div>
       </aside>

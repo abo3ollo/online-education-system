@@ -5,14 +5,29 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
-  Users, BookOpen, CreditCard, Award,
-  GraduationCap, Calendar, CheckCircle,
-  AlertCircle, Loader2, Phone, Mail,
-  FileText, FolderOpen, Eye, ChevronRight,
-  Clock, XCircle, Wallet, Receipt,
+  Users,
+  BookOpen,
+  CreditCard,
+  Award,
+  GraduationCap,
+  Calendar,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  Phone,
+  Mail,
+  FileText,
+  FolderOpen,
+  Eye,
+  ChevronRight,
+  Clock,
+  XCircle,
+  Wallet,
+  Receipt,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
+import Link from "next/link";
 
 // ── Helpers ───────────────────────────────────────────────────────
 function formatDate(ts?: number) {
@@ -20,13 +35,26 @@ function formatDate(ts?: number) {
   return format(new Date(ts), "dd MMM yyyy", { locale: ar });
 }
 
-const statusLabels: Record<string, { label: string; cls: string; icon: any }> = {
-  completed: { label: "مكتمل", cls: "bg-green-100 text-green-700", icon: CheckCircle },
-  approved: { label: "موافق عليه", cls: "bg-green-100 text-green-700", icon: CheckCircle },
+const statusLabels: Record<string, { label: string; cls: string; icon: any }> =
+{
+  completed: {
+    label: "مكتمل",
+    cls: "bg-green-100 text-green-700",
+    icon: CheckCircle,
+  },
+  approved: {
+    label: "موافق عليه",
+    cls: "bg-green-100 text-green-700",
+    icon: CheckCircle,
+  },
   pending: { label: "معلق", cls: "bg-amber-100 text-amber-700", icon: Clock },
   rejected: { label: "مرفوض", cls: "bg-red-100 text-red-600", icon: XCircle },
   failed: { label: "فشل", cls: "bg-red-100 text-red-600", icon: XCircle },
-  refunded: { label: "مُسترد", cls: "bg-blue-100 text-blue-700", icon: Wallet },
+  refunded: {
+    label: "مُسترد",
+    cls: "bg-blue-100 text-blue-700",
+    icon: Wallet,
+  },
 };
 
 const typeIcons: Record<string, string> = {
@@ -55,23 +83,21 @@ export default function ParentDashboard() {
   // ── Queries ───────────────────────────────────────────────────
   const currentUser = useQuery(api.user.auth.getCurrentUser);
 
-  // ✅ جلب الأبناء مع معاملاتهم (الدالة الجديدة)
+  // ✅ جلب الأبناء مع معاملاتهم
   const childrenWithTransactions = useQuery(
     api.user.parents.getChildrenWithTransactions,
-    currentUser?._id
-      ? { parentId: currentUser._id as Id<"users"> }
-      : "skip"
+    currentUser?._id ? { parentId: currentUser._id as Id<"users"> } : "skip",
   );
-  console.log(childrenWithTransactions)
 
   const grades = useQuery(
     api.user.parents.getStudentGrades,
-    selectedStudentId ? { studentId: selectedStudentId } : "skip"
+    selectedStudentId ? { studentId: selectedStudentId } : "skip",
   );
+  console.log(grades);
 
   const groups = useQuery(
     api.groups.groups.getStudentGroups,
-    selectedStudentId ? { studentId: selectedStudentId } : "skip"
+    selectedStudentId ? { studentId: selectedStudentId } : "skip",
   );
 
   // ── Loading / auth guard ──────────────────────────────────────
@@ -95,19 +121,16 @@ export default function ParentDashboard() {
   }
 
   // ── Derived data ──────────────────────────────────────────────
-  // ✅ childrenWithTransactions يحتوي على الأبناء مع معاملاتهم
   const childrenList = childrenWithTransactions ?? [];
 
-  // ✅ دالة لجلب معاملات طفل معين
   const getChildTransactions = (childId: Id<"users">) => {
     const child = childrenList.find((c: any) => c?._id === childId);
     return child?.transactions || [];
   };
 
-  // ✅ جميع المعاملات (لجميع الأبناء)
-  const allTransactions = childrenList.flatMap((child: any) => child?.transactions || []);
-
-  // ✅ معاملات الطالب المحدد
+  const allTransactions = childrenList.flatMap(
+    (child: any) => child?.transactions || [],
+  );
   const studentTransactions = selectedStudentId
     ? getChildTransactions(selectedStudentId)
     : allTransactions;
@@ -116,21 +139,23 @@ export default function ParentDashboard() {
   const groupList = groups ?? [];
 
   const selectedChild = childrenList.find(
-    (c: any) => c?._id === selectedStudentId
+    (c: any) => c?._id === selectedStudentId,
   );
 
-  // ✅ حساب حالة الاشتراك من المعاملات
   const getSubscriptionStatus = (transactions: any[]) => {
     if (!transactions || transactions.length === 0) return "inactive";
-    const sorted = [...transactions].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const sorted = [...transactions].sort(
+      (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
+    );
     const latest = sorted[0];
-    if (latest.status === "completed" || latest.status === "approved") return "active";
+    if (latest.status === "completed" || latest.status === "approved")
+      return "active";
     if (latest.status === "pending") return "awaiting_approval";
-    if (latest.status === "rejected" || latest.status === "failed") return "rejected";
+    if (latest.status === "rejected" || latest.status === "failed")
+      return "rejected";
     return "inactive";
   };
 
-  // ✅ حساب الإحصائيات من المعاملات
   const totalPaid = studentTransactions
     .filter((t: any) => t.status === "completed" || t.status === "approved")
     .reduce((s: number, t: any) => s + (t.amount || 0), 0);
@@ -139,18 +164,19 @@ export default function ParentDashboard() {
     .filter((t: any) => t.status === "pending")
     .reduce((s: number, t: any) => s + (t.amount || 0), 0);
 
-  const unpaidCount = studentTransactions
-    .filter((t: any) => t.status === "pending" || t.status === "failed" || t.status === "rejected")
-    .length;
+  const unpaidCount = studentTransactions.filter(
+    (t: any) =>
+      t.status === "pending" ||
+      t.status === "failed" ||
+      t.status === "rejected",
+  ).length;
 
-  const gradedCount = gradeData.examGrades?.filter(
-    (g: any) => g.status === "graded"
-  ).length ?? 0;
+  const gradedCount =
+    gradeData.examGrades?.filter((g: any) => g.status === "graded").length ?? 0;
 
-  // ✅ Select student AND switch to relevant tab
   const handleSelectStudent = (
     id: Id<"users">,
-    tab: "grades" | "groups" | "payments" = "grades"
+    tab: "grades" | "groups" | "payments" = "grades",
   ) => {
     setSelectedStudentId(id);
     setActiveTab(tab);
@@ -200,10 +226,34 @@ export default function ParentDashboard() {
         {/* ── Stats ──────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: "الأبناء", value: childrenList.length, icon: Users, iconCls: "text-blue-500", bg: "bg-blue-50" },
-            { label: "الدرجات المصححة", value: gradedCount, icon: Award, iconCls: "text-green-500", bg: "bg-green-50" },
-            { label: "مدفوعات معلقة", value: totalPending > 0 ? `${totalPending} ج.م` : "0", icon: CreditCard, iconCls: "text-amber-500", bg: "bg-amber-50" },
-            { label: "يجب الدفع", value: unpaidCount, icon: AlertCircle, iconCls: "text-red-500", bg: "bg-red-50" },
+            {
+              label: "الأبناء",
+              value: childrenList.length,
+              icon: Users,
+              iconCls: "text-blue-500",
+              bg: "bg-blue-50",
+            },
+            {
+              label: "الدرجات المصححة",
+              value: gradedCount,
+              icon: Award,
+              iconCls: "text-green-500",
+              bg: "bg-green-50",
+            },
+            {
+              label: "مدفوعات معلقة",
+              value: totalPending > 0 ? `${totalPending} ج.م` : "0",
+              icon: CreditCard,
+              iconCls: "text-amber-500",
+              bg: "bg-amber-50",
+            },
+            {
+              label: "يجب الدفع",
+              value: unpaidCount,
+              icon: AlertCircle,
+              iconCls: "text-red-500",
+              bg: "bg-red-50",
+            },
           ].map((s) => {
             const Icon = s.icon;
             return (
@@ -215,7 +265,9 @@ export default function ParentDashboard() {
                   <p className="text-2xl font-bold text-gray-900">{s.value}</p>
                   <p className="text-xs text-gray-500 mt-1">{s.label}</p>
                 </div>
-                <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center`}>
+                <div
+                  className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center`}
+                >
                   <Icon className={`h-5 w-5 ${s.iconCls}`} />
                 </div>
               </div>
@@ -232,26 +284,26 @@ export default function ParentDashboard() {
               const isSelected = selectedStudentId === child._id;
               const childTxs = getChildTransactions(child._id);
               const status = getSubscriptionStatus(childTxs);
-              const statusDotColor = {
-                active: "bg-green-500",
-                awaiting_approval: "bg-amber-500",
-                rejected: "bg-red-500",
-                inactive: "bg-gray-300",
-              }[status] || "bg-gray-300";
+              const statusDotColor =
+                {
+                  active: "bg-green-500",
+                  awaiting_approval: "bg-amber-500",
+                  rejected: "bg-red-500",
+                  inactive: "bg-gray-300",
+                }[status] || "bg-gray-300";
 
               return (
                 <button
                   key={child._id}
                   onClick={() =>
                     setSelectedStudentId(
-                      isSelected ? null : (child._id as Id<"users">)
+                      isSelected ? null : (child._id as Id<"users">),
                     )
                   }
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border-2 transition-all ${
-                    isSelected
-                      ? "bg-teal-600 text-white border-teal-600"
-                      : "bg-white text-gray-700 border-gray-200 hover:border-teal-400"
-                  }`}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium cursor-pointer border-2 transition-all ${isSelected
+                    ? "bg-teal-600 text-white border-teal-600"
+                    : "bg-white text-gray-700 border-gray-200 hover:border-teal-400"
+                    }`}
                 >
                   <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
                     {child.name?.charAt(0)}
@@ -259,16 +311,17 @@ export default function ParentDashboard() {
                   {child.name}
                   {child.isPrimary && (
                     <span
-                      className={`text-xs px-1.5 py-0.5 rounded-full ${
-                        isSelected
-                          ? "bg-white/20 text-white"
-                          : "bg-amber-100 text-amber-700"
-                      }`}
+                      className={`text-xs px-1.5 py-0.5 rounded-full ${isSelected
+                        ? "bg-white/20 text-white"
+                        : "bg-amber-100 text-amber-700"
+                        }`}
                     >
                       رئيسي
                     </span>
                   )}
-                  <span className={`w-2.5 h-2.5 rounded-full ${statusDotColor}`} />
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full ${statusDotColor}`}
+                  />
                 </button>
               );
             })}
@@ -285,11 +338,10 @@ export default function ParentDashboard() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                    activeTab === tab.key
-                      ? "border-teal-600 text-teal-600 bg-teal-50/50"
-                      : "border-transparent text-gray-500 hover:text-gray-800"
-                  }`}
+                  className={`flex items-center gap-2 px-6 py-4 text-sm font-medium cursor-pointer border-b-2 whitespace-nowrap transition-colors ${activeTab === tab.key
+                    ? "border-teal-600 text-teal-600 bg-teal-50/50"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                    }`}
                 >
                   <Icon className="h-4 w-4" />
                   {tab.label}
@@ -315,14 +367,14 @@ export default function ParentDashboard() {
                     if (!child) return null;
                     const childTxs = getChildTransactions(child._id);
                     const status = getSubscriptionStatus(childTxs);
-                    
+
                     const statusLabelsMap: Record<string, string> = {
                       active: "نشط ✅",
                       awaiting_approval: "قيد المراجعة ⏳",
                       rejected: "مرفوض ❌",
                       inactive: "غير مفعل",
                     };
-                    
+
                     const statusColorsMap: Record<string, string> = {
                       active: "bg-green-100 text-green-700",
                       awaiting_approval: "bg-amber-100 text-amber-700",
@@ -331,7 +383,10 @@ export default function ParentDashboard() {
                     };
 
                     const totalPaidChild = childTxs
-                      .filter((t: any) => t.status === "completed" || t.status === "approved")
+                      .filter(
+                        (t: any) =>
+                          t.status === "completed" || t.status === "approved",
+                      )
                       .reduce((s: number, t: any) => s + (t.amount || 0), 0);
 
                     return (
@@ -370,23 +425,19 @@ export default function ParentDashboard() {
                         <div className="space-y-1.5 mb-4">
                           <div className="flex items-center gap-2 text-xs text-gray-500">
                             <GraduationCap className="h-3.5 w-3.5 text-teal-500" />
-                            <span>{child.grade?? "غير محدد"}</span>
+                            <span>{child.grade ?? "غير محدد"}</span>
                           </div>
-                          {/* <div className="flex items-center gap-2 text-xs text-gray-500">
-                            <FolderOpen className="h-3.5 w-3.5 text-teal-500" />
-                            <span>{child.groupName ?? "غير محدد"}</span>
-                          </div> */}
                           <div className="flex items-center gap-2 text-xs">
-                            <span className={`px-2 py-0.5 rounded-full ${statusColorsMap[status] || "bg-gray-100 text-gray-600"}`}>
+                            <span
+                              className={`px-2 py-0.5 rounded-full ${statusColorsMap[status] || "bg-gray-100 text-gray-600"}`}
+                            >
                               {statusLabelsMap[status] || "غير محدد"}
                             </span>
                           </div>
                           {childTxs.length > 0 && (
                             <div className="flex items-center gap-2 text-xs text-gray-500">
                               <Wallet className="h-3.5 w-3.5 text-teal-500" />
-                              <span>
-                                إجمالي المدفوع: {totalPaidChild} ج.م
-                              </span>
+                              <span>إجمالي المدفوع: {totalPaidChild} ج.م</span>
                             </div>
                           )}
                         </div>
@@ -394,7 +445,10 @@ export default function ParentDashboard() {
                         <div className="grid grid-cols-3 gap-2">
                           <button
                             onClick={() =>
-                              handleSelectStudent(child._id as Id<"users">, "grades")
+                              handleSelectStudent(
+                                child._id as Id<"users">,
+                                "grades",
+                              )
                             }
                             className="flex flex-col items-center gap-1 p-2 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg text-xs transition-colors"
                           >
@@ -403,7 +457,10 @@ export default function ParentDashboard() {
                           </button>
                           <button
                             onClick={() =>
-                              handleSelectStudent(child._id as Id<"users">, "groups")
+                              handleSelectStudent(
+                                child._id as Id<"users">,
+                                "groups",
+                              )
                             }
                             className="flex flex-col items-center gap-1 p-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs transition-colors"
                           >
@@ -412,7 +469,10 @@ export default function ParentDashboard() {
                           </button>
                           <button
                             onClick={() =>
-                              handleSelectStudent(child._id as Id<"users">, "payments")
+                              handleSelectStudent(
+                                child._id as Id<"users">,
+                                "payments",
+                              )
                             }
                             className="flex flex-col items-center gap-1 p-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs transition-colors"
                           >
@@ -452,7 +512,7 @@ export default function ParentDashboard() {
                     </span>
                   </p>
 
-                  {/* Exam grades */}
+                  {/* ✅ Exam grades مع زر Eye */}
                   <div>
                     <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                       <FileText className="h-4 w-4 text-teal-600" />
@@ -464,44 +524,64 @@ export default function ParentDashboard() {
                       </p>
                     ) : (
                       <div className="space-y-2">
-                        {gradeData.examGrades.map((g: any) => (
-                          <div
-                            key={g._id}
-                            className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100"
-                          >
-                            <div>
-                              <p className="text-sm font-semibold text-gray-900">
-                                {g.examTitle}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {g.examSubject} — {formatDate(g.examDate)}
-                              </p>
-                            </div>
-                            <div className="text-left">
-                              {g.status === "graded" ? (
+                        {gradeData.examGrades.map((g: any) => {
+                          const percentage = g.maxMarks > 0
+                            ? Math.round((g.totalMarks / g.maxMarks) * 100)
+                            : 0;
+                          const isPassing = percentage >= 50;
+
+                          return (
+                            <div
+                              key={g._id}
+                              className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-teal-200 transition-all"
+                            >
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {g.examTitle}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  {g.examSubject} — {formatDate(g.examDate)}
+                                </p>
+                              </div>
+                              <div className="text-left flex items-center gap-4">
                                 <div className="text-center">
-                                  <p className="text-xl font-bold text-teal-600">
-                                    {g.totalMarks}
-                                  </p>
-                                  {g.maxMarks > 0 && (
-                                    <p className="text-xs text-gray-400">
-                                      / {g.maxMarks}
-                                    </p>
+                                  {g.status === "graded" ? (
+                                    <>
+                                      <p className={`text-xl font-bold ${isPassing ? 'text-teal-600' : 'text-red-500'}`}>
+                                        {g.totalMarks}
+                                      </p>
+                                      {g.maxMarks > 0 && (
+                                        <p className="text-xs text-gray-400">
+                                          / {g.maxMarks} • {percentage}%
+                                        </p>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                                      انتظار التصحيح
+                                    </span>
                                   )}
                                 </div>
-                              ) : (
-                                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
-                                  انتظار التصحيح
-                                </span>
-                              )}
+
+                                {/* ✅ زر Eye - يظهر فقط بعد التصحيح */}
+                                {g.status === "graded" && g.examId && (
+                                  <Link
+                                    href={`/parent/exam/${g.examId}?student=${selectedStudentId}`}
+                                    className="p-2 bg-white hover:bg-teal-50 rounded-lg border border-gray-200 hover:border-teal-300 transition-all group"
+                                    title="عرض الامتحان مع الإجابات والتصحيح"
+                                  >
+                                    <Eye className="h-5 w-5 text-gray-500 group-hover:text-teal-600 transition-colors" />
+                                  </Link>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
 
-                  {/* Assignment grades */}
+                  {/* ✅ Assignment grades */}
                   <div>
                     <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                       <BookOpen className="h-4 w-4 text-teal-600" />
@@ -513,39 +593,46 @@ export default function ParentDashboard() {
                       </p>
                     ) : (
                       <div className="space-y-2">
-                        {gradeData.assignmentGrades.map((g: any) => (
-                          <div
-                            key={g._id}
-                            className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100"
-                          >
-                            <div>
-                              <p className="text-sm font-semibold text-gray-900">
-                                {g.assignmentTitle}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                تاريخ التسليم: {formatDate(g.assignmentDueDate)}
-                              </p>
-                            </div>
-                            <div className="text-left">
-                              {g.status === "graded" ? (
-                                <div className="text-center">
-                                  <p className="text-xl font-bold text-teal-600">
-                                    {g.grade}
-                                  </p>
-                                  {g.maxGrade > 0 && (
-                                    <p className="text-xs text-gray-400">
-                                      / {g.maxGrade}
+                        {gradeData.assignmentGrades.map((g: any) => {
+                          const percentage = g.maxGrade > 0
+                            ? Math.round((g.grade / g.maxGrade) * 100)
+                            : 0;
+                          const isPassing = percentage >= 50;
+
+                          return (
+                            <div
+                              key={g._id}
+                              className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-teal-200 transition-all"
+                            >
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {g.assignmentTitle}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  تاريخ التسليم: {formatDate(g.assignmentDueDate)}
+                                </p>
+                              </div>
+                              <div className="text-left">
+                                {g.status === "graded" ? (
+                                  <div className="text-center">
+                                    <p className={`text-xl font-bold ${isPassing ? 'text-teal-600' : 'text-red-500'}`}>
+                                      {g.grade}
                                     </p>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
-                                  انتظار التصحيح
-                                </span>
-                              )}
+                                    {g.maxGrade > 0 && (
+                                      <p className="text-xs text-gray-400">
+                                        / {g.maxGrade} • {percentage}%
+                                      </p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                                    انتظار التصحيح
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -594,13 +681,14 @@ export default function ParentDashboard() {
                               {group.name}
                             </p>
                             <span
-                              className={`text-xs px-2 py-0.5 rounded-full ${
-                                group.status === "active"
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-gray-100 text-gray-600"
-                              }`}
+                              className={`text-xs px-2 py-0.5 rounded-full ${group.status === "active"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-gray-100 text-gray-600"
+                                }`}
                             >
-                              {group.status === "active" ? "نشطة" : group.status}
+                              {group.status === "active"
+                                ? "نشطة"
+                                : group.status}
                             </span>
                           </div>
                           <div className="space-y-1.5">
@@ -628,7 +716,7 @@ export default function ParentDashboard() {
                                 <span>
                                   {Array.isArray(group.schedule.days)
                                     ? group.schedule.days.join("، ")
-                                    : group.schedule.days ?? "—"}
+                                    : (group.schedule.days ?? "—")}
                                 </span>
                               </div>
                             )}
@@ -646,59 +734,6 @@ export default function ParentDashboard() {
           {activeTab === "payments" && (
             <div className="p-6">
               <div className="space-y-6">
-                {/* ✅ حالة اشتراك ولي الأمر */}
-                {/* <div className="bg-white rounded-xl border border-gray-200 p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
-                      <CreditCard className="h-5 w-5 text-teal-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">حالة الاشتراك</h3>
-                      <p className="text-xs text-gray-500">حالة اشتراكك في المنصة</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-4 rounded-xl border">
-                    <div>
-                      <p className="text-sm text-gray-500">حالة الاشتراك</p>
-                      <p className="font-bold text-gray-900 mt-0.5">
-                        {currentUser.subscriptionStatus === "active" ? "نشط" :
-                         currentUser.subscriptionStatus === "awaiting_approval" ? "في انتظار الموافقة" :
-                         currentUser.subscriptionStatus === "pending" ? "قيد الانتظار" :
-                         currentUser.subscriptionStatus === "rejected" ? "مرفوض" : "غير محدد"}
-                      </p>
-                    </div>
-                    <div>
-                      {currentUser.subscriptionStatus === "active" ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-green-700 bg-green-100 rounded-full">
-                          <CheckCircle className="h-4 w-4" />
-                          مفعل
-                        </span>
-                      ) : currentUser.subscriptionStatus === "awaiting_approval" ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-amber-700 bg-amber-100 rounded-full">
-                          <Clock className="h-4 w-4" />
-                          قيد المراجعة
-                        </span>
-                      ) : currentUser.subscriptionStatus === "pending" ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-blue-700 bg-blue-100 rounded-full">
-                          <Clock className="h-4 w-4" />
-                          لم يدفع بعد
-                        </span>
-                      ) : currentUser.subscriptionStatus === "rejected" ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-red-700 bg-red-100 rounded-full">
-                          <XCircle className="h-4 w-4" />
-                          مرفوض
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-gray-700 bg-gray-100 rounded-full">
-                          <AlertCircle className="h-4 w-4" />
-                          غير محدد
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div> */}
-
                 {/* ✅ حالة اشتراك الأبناء من المعاملات */}
                 {childrenList.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -707,25 +742,42 @@ export default function ParentDashboard() {
                         <Users className="h-5 w-5 text-blue-600" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">اشتراكات الأبناء</h3>
-                        <p className="text-xs text-gray-500">حالة اشتراك كل ابن في المنصة</p>
+                        <h3 className="font-semibold text-gray-900">
+                          اشتراكات الأبناء
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          حالة اشتراك كل ابن في المنصة
+                        </p>
                       </div>
                     </div>
-                    
+
                     <div className="space-y-3">
                       {childrenList.map((child: any) => {
                         const childTxs = getChildTransactions(child._id);
-                        const sortedTxs = [...childTxs].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                        const sortedTxs = [...childTxs].sort(
+                          (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
+                        );
                         const latestTx = sortedTxs[0];
-                        
-                        const isActive = latestTx?.status === "completed" || latestTx?.status === "approved";
+
+                        const isActive =
+                          latestTx?.status === "completed" ||
+                          latestTx?.status === "approved";
                         const isPending = latestTx?.status === "pending";
-                        const isRejected = latestTx?.status === "rejected" || latestTx?.status === "failed";
-                        
+                        const isRejected =
+                          latestTx?.status === "rejected" ||
+                          latestTx?.status === "failed";
+
                         const totalPaidChild = childTxs
-                          .filter((t: any) => t.status === "completed" || t.status === "approved")
-                          .reduce((s: number, t: any) => s + (t.amount || 0), 0);
-                        
+                          .filter(
+                            (t: any) =>
+                              t.status === "completed" ||
+                              t.status === "approved",
+                          )
+                          .reduce(
+                            (s: number, t: any) => s + (t.amount || 0),
+                            0,
+                          );
+
                         return (
                           <div
                             key={child._id}
@@ -738,8 +790,12 @@ export default function ParentDashboard() {
                                 </span>
                               </div>
                               <div>
-                                <p className="font-medium text-gray-900 text-sm">{child.name}</p>
-                                <p className="text-xs text-gray-400">{child.studentId || "رقم غير محدد"}</p>
+                                <p className="font-medium text-gray-900 text-sm">
+                                  {child.name}
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  {child.studentId || "رقم غير محدد"}
+                                </p>
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
@@ -793,9 +849,12 @@ export default function ParentDashboard() {
                         <Receipt className="h-5 w-5 text-purple-600" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">تفاصيل المعاملات</h3>
+                        <h3 className="font-semibold text-gray-900">
+                          تفاصيل المعاملات
+                        </h3>
                         <p className="text-xs text-gray-500">
-                          {selectedChild?.name} — {studentTransactions.length} معاملة
+                          {selectedChild?.name} — {studentTransactions.length}{" "}
+                          معاملة
                         </p>
                       </div>
                     </div>
@@ -805,73 +864,100 @@ export default function ParentDashboard() {
                         لا توجد معاملات للطالب {selectedChild?.name}
                       </p>
                     ) : (
-                      <div className="space-y-3">
-                        {studentTransactions.map((tx: any) => {
-                          const StatusIcon = statusLabels[tx.status]?.icon || AlertCircle;
-                          return (
-                            <div
-                              key={tx._id}
-                              className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-purple-200 transition-all"
-                            >
-                              <div className="flex items-center gap-3">
-                                <span className="text-xl">{typeIcons[tx.type] || "💳"}</span>
-                                <div>
-                                  <p className="text-sm font-medium text-gray-900">
-                                    {tx.descriptionAr || tx.description || "معاملة"}
-                                  </p>
-                                  <p className="text-xs text-gray-400 flex items-center gap-2">
-                                    <span>{typeLabels[tx.type] || tx.type}</span>
-                                    <span>•</span>
-                                    <span>{formatDate(tx.createdAt)}</span>
-                                    {tx.teacherName && (
-                                      <>
-                                        <span>•</span>
-                                        <span>المعلم: {tx.teacherName}</span>
-                                      </>
-                                    )}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="text-left flex items-center gap-3">
-                                <span className="text-sm font-bold text-gray-900">
-                                  {tx.amount} {tx.currency || "ج.م"}
-                                </span>
-                                <span className={`text-xs px-2 py-1 rounded-full ${statusLabels[tx.status]?.cls || "bg-gray-100 text-gray-600"}`}>
-                                  {statusLabels[tx.status]?.label || tx.status}
-                                </span>
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {studentTransactions.map((tx: any) => (
+                          <div
+                            key={tx._id}
+                            className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-purple-200 transition-all"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-xl">
+                                {typeIcons[tx.type] || "💳"}
+                              </span>
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">
+                                  {tx.descriptionAr ||
+                                    tx.description ||
+                                    "معاملة"}
+                                </p>
+                                <p className="text-xs text-gray-400 flex items-center gap-2">
+                                  <span>{typeLabels[tx.type] || tx.type}</span>
+                                  <span>•</span>
+                                  <span>{formatDate(tx.createdAt)}</span>
+                                  {tx.teacherName && (
+                                    <>
+                                      <span>•</span>
+                                      <span>المعلم: {tx.teacherName}</span>
+                                    </>
+                                  )}
+                                </p>
                               </div>
                             </div>
-                          );
-                        })}
+                            <div className="text-left flex items-center gap-3">
+                              <span className="text-sm font-bold text-gray-900">
+                                {tx.amount} {tx.currency || "ج.م"}
+                              </span>
+                              <span
+                                className={`text-xs px-2 py-1 rounded-full ${statusLabels[tx.status]?.cls || "bg-gray-100 text-gray-600"}`}
+                              >
+                                {statusLabels[tx.status]?.label || tx.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
                 ) : (
                   <div className="bg-white rounded-xl border border-gray-200 p-5 text-center">
-                    <p className="text-gray-400">اختر طالباً لعرض تفاصيل معاملاته</p>
+                    <p className="text-gray-400">
+                      اختر طالباً لعرض تفاصيل معاملاته
+                    </p>
                   </div>
                 )}
 
                 {/* ✅ ملخص سريع */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-green-50 rounded-xl p-4 border border-green-200">
-                    <p className="text-xs text-green-600 font-medium">المدفوع</p>
+                    <p className="text-xs text-green-600 font-medium">
+                      المدفوع
+                    </p>
                     <p className="text-xl font-bold text-green-700 mt-1">
-                      {allTransactions.filter((t: any) => t.status === "completed" || t.status === "approved").length}
+                      {
+                        allTransactions.filter(
+                          (t: any) =>
+                            t.status === "completed" || t.status === "approved",
+                        ).length
+                      }
                     </p>
                     <p className="text-xs text-green-500">معاملات مكتملة</p>
                   </div>
                   <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
-                    <p className="text-xs text-amber-600 font-medium">قيد الانتظار</p>
-                    <p className="text-xl font-bold text-amber-700 mt-1">
-                      {allTransactions.filter((t: any) => t.status === "pending").length}
+                    <p className="text-xs text-amber-600 font-medium">
+                      قيد الانتظار
                     </p>
-                    <p className="text-xs text-amber-500">معاملات قيد المراجعة</p>
+                    <p className="text-xl font-bold text-amber-700 mt-1">
+                      {
+                        allTransactions.filter(
+                          (t: any) => t.status === "pending",
+                        ).length
+                      }
+                    </p>
+                    <p className="text-xs text-amber-500">
+                      معاملات قيد المراجعة
+                    </p>
                   </div>
                   <div className="bg-red-50 rounded-xl p-4 border border-red-200">
-                    <p className="text-xs text-red-600 font-medium">مرفوض / فشل</p>
+                    <p className="text-xs text-red-600 font-medium">
+                      مرفوض / فشل
+                    </p>
                     <p className="text-xl font-bold text-red-700 mt-1">
-                      {allTransactions.filter((t: any) => t.status === "rejected" || t.status === "failed").length}
+                      {
+                        allTransactions.filter(
+                          (t: any) =>
+                            t.status === "rejected" || t.status === "failed",
+                        ).length
+                      }
                     </p>
                     <p className="text-xs text-red-500">معاملات مرفوضة</p>
                   </div>

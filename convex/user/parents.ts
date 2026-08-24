@@ -330,7 +330,7 @@ export const getParentsStats = query({
 
 
 
-// ✅ جلب درجات الطالب (لولي الأمر)
+// ✅ جلب درجات الطالب (لولي الأمر) - محسّن
 export const getStudentGrades = query({
   args: { studentId: v.id("users") },
   handler: async (ctx, args) => {
@@ -358,7 +358,7 @@ export const getStudentGrades = query({
       throw new Error("غير مصرح لك بمشاهدة درجات هذا الطالب");
     }
 
-    // جلب درجات الامتحانات
+    // ✅ جلب درجات الامتحانات مع التفاصيل الكاملة
     const examSubmissions = await ctx.db
       .query("examSubmissions")
       .withIndex("by_student", (q) => q.eq("studentId", args.studentId))
@@ -369,14 +369,17 @@ export const getStudentGrades = query({
         const exam = await ctx.db.get(sub.examId);
         return {
           ...sub,
+          examId: sub.examId, // ✅ إضافة examId
           examTitle: exam?.title || "امتحان غير معروف",
           examSubject: exam?.subject || "غير محدد",
           examDate: exam?.date,
+          maxMarks: exam?.totalMarks || 0,
+          totalMarks: sub.totalMarks || 0,
         };
       })
     );
 
-    // جلب درجات الواجبات
+    // ✅ جلب درجات الواجبات مع التفاصيل الكاملة
     const assignmentSubmissions = await ctx.db
       .query("submissions")
       .withIndex("by_student", (q) => q.eq("studentId", args.studentId))
@@ -389,6 +392,8 @@ export const getStudentGrades = query({
           ...sub,
           assignmentTitle: assignment?.title || "واجب غير معروف",
           assignmentDueDate: assignment?.dueDate,
+          maxGrade: assignment?.fullGrade || 0,
+          grade: sub.grade || 0,
         };
       })
     );

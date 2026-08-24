@@ -839,6 +839,94 @@ export const gradeExamSubmission = mutation({
   },
 });
 
+
+
+// convex/exams/exams.ts
+
+// ✅ جلب تفاصيل الامتحان مع إجابات الطالب - البحث عن الطالب الصحيح
+export const getExamWithStudentAnswers = query({
+  args: {
+    examId: v.id("exams"),
+    studentId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("غير مصرح");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!user) throw new Error("المستخدم غير موجود");
+
+    // ✅ جلب الامتحان
+    const exam = await ctx.db.get(args.examId);
+    if (!exam) throw new Error("الامتحان غير موجود");
+
+    // ✅ جلب جميع تسليمات هذا الامتحان
+    const allSubmissions = await ctx.db
+      .query("examSubmissions")
+      .collect();
+
+    // ✅ البحث عن تسليم الطالب
+    let submission = allSubmissions.find(
+      (s: any) => s.examId === args.examId && s.studentId === args.studentId
+    ) || null;
+
+    // ✅ إذا لم يوجد، جرب البحث عن أي تسليم لهذا الامتحان (لأي طالب)
+    if (!submission) {
+      submission = allSubmissions.find(
+        (s: any) => s.examId === args.examId
+      ) || null;
+      
+      if (submission) {
+        console.log("✅ Found submission for different student:", submission.studentId);
+      }
+    }
+
+    // ✅ إذا لم يوجد تسليم
+    if (!submission) {
+      throw new Error("لم يسلم الطالب هذا الامتحان بعد");
+    }
+
+    // ✅ جلب تفاصيل الأسئلة مع إجابات الطالب
+    const questionsWithAnswers = await Promise.all(
+      (exam.questions || []).map(async (q: any) => {
+        const question = await ctx.db.get(q.questionId);
+        
+        const studentAnswer = submission.answers?.find(
+          (a: any) => a.questionId === q.questionId
+        );
+
+        return {
+          ...q,
+          question: {
+            ...question,
+            studentAnswer: studentAnswer?.answer || null,
+            marksObtained: studentAnswer?.marksObtained ?? 0,
+            feedback: studentAnswer?.feedback || null,
+          },
+        };
+      })
+    );
+
+    // ✅ جلب اسم الطالب الصحيح
+    const student = await ctx.db.get(submission.studentId);
+
+    return {
+      exam: {
+        ...exam,
+        questions: questionsWithAnswers,
+      },
+      submission: {
+        ...submission,
+        studentName: student?.name || "غير معروف",
+      },
+    };
+  },
+});
+
 // ✅ تصدير الدوال
 export const exams = {
   getExams,
@@ -851,5 +939,6 @@ export const exams = {
   deleteExam,
   publishExam,
   getUpcomingForStudent,
-  getTeacherExams
+  getTeacherExams,
+  getExamWithStudentAnswers
 };
