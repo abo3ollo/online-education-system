@@ -106,6 +106,7 @@ export const getUserChats = query({
 });
 
 
+// ✅ جلب محادثات المعلم (محسّن ليشمل المحادثات المباشرة مع أولياء الأمور)
 export const getTeacherChats = query({
   args: {},
   handler: async (ctx) => {
@@ -121,21 +122,6 @@ export const getTeacherChats = query({
       throw new Error("مطلوب صلاحيات معلم");
     }
 
-    // ✅ جلب جميع المجموعات التي يدرسها المعلم
-    const allGroups = await ctx.db.query("groups").collect();
-    
-    const teacherGroupIds = new Set<Id<"groups">>();
-    const teacherGroups = allGroups.filter((g) => {
-      const isCreator = g.createdBy === user._id;
-      const isSupervisor = g.supervisorId === user._id;
-      const isTeacher = g.teachers && g.teachers.includes(user._id);
-      if (isCreator || isSupervisor || isTeacher) {
-        teacherGroupIds.add(g._id);
-        return true;
-      }
-      return false;
-    });
-
     // ✅ جلب جميع المشاركات الخاصة بالمعلم
     const participants = await ctx.db
       .query("chatParticipants")
@@ -143,52 +129,7 @@ export const getTeacherChats = query({
       .filter((q) => q.neq(q.field("status"), "kicked"))
       .collect();
 
-    // ✅ تصفية المحادثات
-    const validChats = [];
-    for (const p of participants) {
-      const chat = await ctx.db.get(p.chatId);
-      if (!chat || !chat.isActive) continue;
-      
-      // ✅ إذا كانت المحادثة من نوع group وترتبط بمجموعة المعلم
-      if (chat.type === "group" && chat.groupId) {
-        if (teacherGroupIds.has(chat.groupId as Id<"groups">)) {
-          validChats.push(p);
-          continue;
-        }
-      }
-      
-      // ✅ إذا كان المعلم هو منشئ المحادثة
-      if (chat.createdBy === user._id) {
-        validChats.push(p);
-        continue;
-      }
-      
-      // ✅ إذا كانت المحادثة تحتوي على طلاب من مجموعات المعلم
-      const chatParticipants = await ctx.db
-        .query("chatParticipants")
-        .withIndex("by_chat", (q) => q.eq("chatId", chat._id))
-        .collect();
-      
-      for (const cp of chatParticipants) {
-        if (cp.userId === user._id) continue;
-        const participantUser = await ctx.db.get(cp.userId);
-        if (participantUser && participantUser.role === "student") {
-          // التحقق إذا كان الطالب في إحدى مجموعات المعلم
-          const studentGroups = allGroups.filter(g => 
-            g.students && g.students.includes(participantUser._id)
-          );
-          for (const sg of studentGroups) {
-            if (teacherGroupIds.has(sg._id)) {
-              validChats.push(p);
-              break;
-            }
-          }
-        }
-        if (validChats.includes(p)) break;
-      }
-    }
-
-    const chatIds = validChats.map((p) => p.chatId);
+    const chatIds = participants.map((p) => p.chatId);
 
     // ✅ جلب تفاصيل المحادثات
     const chats = await Promise.all(
@@ -228,15 +169,25 @@ export const getTeacherChats = query({
           )
           .collect();
 
+        // ✅ جلب اسم المحادثة للمحادثات المباشرة
         let chatName = chat.name;
+        let chatAvatar = chat.avatar;
+        let otherParticipantUser = null;
+
         if (chat.type === "direct") {
+          // ✅ جلب المشارك الآخر
           const otherParticipant = participants.find(
             (p) => p.chatId === chatId && p.userId !== user._id
           );
           if (otherParticipant) {
             const otherUser = await ctx.db.get(otherParticipant.userId);
             if (otherUser) {
+              otherParticipantUser = otherUser;
               chatName = otherUser.name;
+              // ✅ إذا كان المشارك الآخر ولي أمر، نضيف (ولي أمر) للاسم
+              if (otherUser.role === "parent") {
+                chatName = `${otherUser.name} (ولي أمر)`;
+              }
             }
           }
         }
@@ -244,6 +195,7 @@ export const getTeacherChats = query({
         return {
           ...chat,
           name: chatName,
+          avatar: chatAvatar,
           lastMessage: lastMessage?.content || null,
           lastMessageAt: lastMessage?.createdAt || chat.createdAt,
           lastMessageSender: lastMessage?.senderId || null,
@@ -252,10 +204,12 @@ export const getTeacherChats = query({
           isAdmin: participants.find(
             (p) => p.chatId === chatId && p.userId === user._id
           )?.role === "admin",
+          otherParticipant: otherParticipantUser,
         };
       })
     );
 
+    // ✅ ترتيب المحادثات حسب آخر رسالة
     return chats
       .filter(Boolean)
       .sort((a, b) => (b?.lastMessageAt || 0) - (a?.lastMessageAt || 0));
@@ -422,6 +376,8 @@ export const getAvailableParticipants = query({
 // ============================================
 
 
+// convex/chat/chats.ts - تحديث دالة createChat
+
 export const createChat = mutation({
   args: {
     name: v.string(),
@@ -451,28 +407,16 @@ export const createChat = mutation({
 
     if (!user) throw new Error("المستخدم غير موجود");
 
-    // التحقق من الصلاحيات
+    // ✅ السماح للمعلمين بإنشاء محادثات مباشرة مع أولياء الأمور
     const isAdmin = user.role === "admin";
     const isTeacher = user.role === "teacher";
+    const isParent = user.role === "parent";
 
-    if (args.type === "group" && !isAdmin && !isTeacher) {
+    // ✅ للمحادثات المباشرة، أي شخص يمكنه الإنشاء
+    if (args.type === "direct") {
+      // ✅ السماح للجميع بإنشاء محادثات مباشرة
+    } else if (args.type === "group" && !isAdmin && !isTeacher) {
       throw new Error("غير مصرح لك بإنشاء مجموعات محادثة");
-    }
-
-    // ✅ إذا كان معلم، التحقق من أن المجموعة تابعة له
-    let groupInfo = null;
-    if (isTeacher && args.addGroupId) {
-      const group = await ctx.db.get(args.addGroupId);
-      if (!group) throw new Error("المجموعة غير موجودة");
-      
-      const isCreator = group.createdBy === user._id;
-      const isSupervisor = group.supervisorId === user._id;
-      const isTeacherInGroup = group.teachers?.includes(user._id);
-      
-      if (!isCreator && !isSupervisor && !isTeacherInGroup) {
-        throw new Error("غير مصرح لك بإضافة هذه المجموعة");
-      }
-      groupInfo = group;
     }
 
     let participantIds = new Set<Id<"users">>();
@@ -480,89 +424,42 @@ export const createChat = mutation({
     // إضافة المنشئ
     participantIds.add(user._id);
 
-    // ✅ إضافة المعلمين الآخرين في المجموعة (إذا كانت مجموعة)
-    if (args.addGroupId && groupInfo) {
-      // إضافة جميع المعلمين في المجموعة
-      if (groupInfo.teachers) {
-        groupInfo.teachers.forEach((id) => participantIds.add(id));
-      }
-      if (groupInfo.supervisorId) {
-        participantIds.add(groupInfo.supervisorId);
-      }
-    }
-
-    // إضافة المشاركين المحددين
+    // ✅ التحقق من أن المشاركين المحددين موجودين
     if (args.participants) {
-      args.participants.forEach((id) => participantIds.add(id));
-    }
-
-    // إضافة مجموعة كاملة (طلاب)
-    if (args.addGroupId) {
-      const group = await ctx.db.get(args.addGroupId);
-      if (group) {
-        group.students.forEach((id) => participantIds.add(id));
-        if (group.teachers) {
-          group.teachers.forEach((id) => participantIds.add(id));
+      for (const pid of args.participants) {
+        const p = await ctx.db.get(pid);
+        if (!p) {
+          throw new Error(`المستخدم غير موجود: ${pid}`);
         }
-        if (group.supervisorId) {
-          participantIds.add(group.supervisorId);
-        }
+        // ✅ السماح بإضافة أي مستخدم (معلم، ولي أمر، طالب)
+        participantIds.add(pid);
       }
-    }
-
-    // إضافة صف كامل
-    if (args.addGradeId) {
-      const students = await ctx.db
-        .query("users")
-        .withIndex("by_gradeId", (q) => q.eq("gradeId", args.addGradeId))
-        .collect();
-      students.forEach((s) => participantIds.add(s._id));
-
-      const teachers = await ctx.db
-        .query("users")
-        .withIndex("by_gradeId", (q) => q.eq("gradeId", args.addGradeId))
-        .filter((q) => q.eq(q.field("role"), "teacher"))
-        .collect();
-      teachers.forEach((t) => participantIds.add(t._id));
-    }
-
-    // إضافة جميع المعلمين
-    if (args.addAllTeachers) {
-      const teachers = await ctx.db
-        .query("users")
-        .withIndex("by_role", (q) => q.eq("role", "teacher"))
-        .collect();
-      teachers.forEach((t) => participantIds.add(t._id));
-    }
-
-    // إضافة جميع أولياء الأمور
-    if (args.addAllParents) {
-      const parents = await ctx.db
-        .query("users")
-        .withIndex("by_role", (q) => q.eq("role", "parent"))
-        .collect();
-      parents.forEach((p) => participantIds.add(p._id));
     }
 
     // للمحادثات المباشرة، يجب أن يكون هناك مشاركين فقط (المنشئ + 1)
     if (args.type === "direct" && participantIds.size !== 2) {
       const participantsArray = Array.from(participantIds);
-      participantIds = new Set([participantsArray[0], participantsArray[1]]);
+      // ✅ إذا كان هناك أكثر من 2، نأخذ أول 2
+      if (participantsArray.length > 2) {
+        participantIds = new Set([participantsArray[0], participantsArray[1]]);
+      } else {
+        throw new Error("المحادثة المباشرة تتطلب مشاركين فقط (أنت وشخص آخر)");
+      }
     }
 
-    // ✅ إنشاء المحادثة مع ربط groupId إذا كانت مجموعة
+    // ✅ إنشاء المحادثة
     const chatData: any = {
       name: args.name,
       description: args.description,
       type: args.type,
       createdBy: user._id,
-      isPrivate: args.isPrivate,
+      isPrivate: args.isPrivate || args.type === "direct",
       isActive: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
 
-    // ✅ إضافة groupId للمحادثة إذا كانت من نوع group
+    // ✅ إضافة groupId إذا كانت المحادثة من نوع group
     if (args.type === "group" && args.addGroupId) {
       chatData.groupId = args.addGroupId;
     }
@@ -584,18 +481,20 @@ export const createChat = mutation({
 
     await Promise.all(participantPromises);
 
-    // إرسال رسالة ترحيب
-    await ctx.db.insert("chatMessages", {
-      chatId,
-      senderId: user._id,
-      content: `تم إنشاء المحادثة "${args.name}"`,
-      type: "system",
-      isEdited: false,
-      isDeleted: false,
-      isPinned: false,
-      readBy: [user._id],
-      createdAt: Date.now(),
-    });
+    // إرسال رسالة ترحيب للمحادثات الجماعية فقط
+    if (args.type !== "direct") {
+      await ctx.db.insert("chatMessages", {
+        chatId,
+        senderId: user._id,
+        content: `تم إنشاء المحادثة "${args.name}"`,
+        type: "system",
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        readBy: [user._id],
+        createdAt: Date.now(),
+      });
+    }
 
     return { success: true, chatId };
   },
@@ -756,8 +655,6 @@ export const leaveChat = mutation({
   },
 });
 
-
-// convex/chat/chats.ts - إصلاح دالة getChatByGroupId
 
 // ✅ جلب مجموعة الشات المرتبطة بمجموعة دراسية
 export const getChatByGroupId = query({

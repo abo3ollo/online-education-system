@@ -415,3 +415,91 @@ export const getPublicTeachers = query({
 });
 
 
+// ✅ جلب المعلمين من مجموعات الأبناء
+export const getTeachersByChildren = query({
+  args: {
+    childrenIds: v.array(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("غير مصرح");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!user) throw new Error("المستخدم غير موجود");
+
+    if (user.role !== "parent" && user.role !== "admin") {
+      throw new Error("غير مصرح");
+    }
+
+    if (args.childrenIds.length === 0) {
+      return [];
+    }
+
+    // ✅ جلب جميع المجموعات التي يدرسها الأطفال
+    const allGroups = await ctx.db.query("groups").collect();
+    
+    // ✅ جلب المجموعات التي فيها الأطفال
+    const childGroupIds = new Set<Id<"groups">>();
+    for (const group of allGroups) {
+      if (group.students?.some((studentId) => args.childrenIds.includes(studentId))) {
+        childGroupIds.add(group._id);
+      }
+    }
+
+    // ✅ جلب أسماء المعلمين من المجموعات
+    const teacherIds = new Set<Id<"users">>();
+    const teacherMap = new Map<Id<"users">, { name: string; subject: string; gradeName: string; _id: Id<"users"> }>();
+
+    for (const groupId of childGroupIds) {
+      const group = await ctx.db.get(groupId);
+      if (!group) continue;
+
+      // إضافة المشرف
+      if (group.supervisorId) {
+        teacherIds.add(group.supervisorId);
+      }
+
+      // إضافة المعلمين
+      if (group.teachers) {
+        group.teachers.forEach((id) => teacherIds.add(id));
+      }
+
+      // إضافة المنشئ
+      if (group.createdBy) {
+        teacherIds.add(group.createdBy);
+      }
+
+      // جلب اسم الصف
+      let gradeName = "غير محدد";
+      if (group.gradeId) {
+        const grade = await ctx.db.get(group.gradeId);
+        if (grade) {
+          gradeName = grade.name || "غير محدد";
+        }
+      }
+
+      // تخزين معلومات المعلمين
+      for (const teacherId of teacherIds) {
+        if (!teacherMap.has(teacherId)) {
+          const teacher = await ctx.db.get(teacherId);
+          if (teacher && teacher.role === "teacher") {
+            teacherMap.set(teacherId, {
+              _id: teacher._id,
+              name: teacher.name || "معلم",
+              subject: group.subject || "",
+              gradeName: gradeName,
+            });
+          }
+        }
+      }
+    }
+
+    return Array.from(teacherMap.values());
+  },
+});
+
+

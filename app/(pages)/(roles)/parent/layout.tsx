@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Users, CreditCard, Bell, Settings, User, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, CreditCard, Bell, Settings, User, LogOut, BellCheck } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
@@ -14,6 +14,8 @@ const navigation = [
   { name: "لوحة التحكم", href: "/parent", icon: LayoutDashboard },
   { name: "أبنائي", href: "/parent/children", icon: Users },
   { name: "المعاملات", href: "/parent/transactions", icon: CreditCard },
+  { name: "ChatBox", href: "/parent/chatbox", icon: BellCheck },
+
 //   { name: "الإشعارات", href: "/parent/notifications", icon: Bell },
 //   { name: "الإعدادات", href: "/parent/settings", icon: Settings },
 ];
