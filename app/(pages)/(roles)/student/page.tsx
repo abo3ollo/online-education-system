@@ -5,9 +5,10 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   Bell,
   Calendar,
@@ -36,6 +37,7 @@ import {
   ChevronRight,
   CreditCard,
   Loader2,
+  Video,
 } from "lucide-react";
 import { MdOutlinePermMedia } from "react-icons/md";
 import { SiGoogleclassroom } from "react-icons/si";
@@ -121,7 +123,8 @@ export default function StudentDashboard() {
   const router = useRouter();
   const currentUser = useQuery(api.user.auth.getCurrentUser);
   const [showSchedule, setShowSchedule] = useState<string | null>(null);
-  const [activeEventTab, setActiveEventTab] = useState<"all" | "assignments" | "exams">("all");
+  const [activeEventTab, setActiveEventTab] = useState<"all" | "assignments" | "exams" | "live">("all");
+  const [joiningClassId, setJoiningClassId] = useState<string | null>(null);
 
   // ✅ التحقق من حالة الاشتراك
   const subscriptionStatus = currentUser?.subscriptionStatus;
@@ -157,10 +160,43 @@ export default function StudentDashboard() {
     currentUser?._id ? { studentId: currentUser._id as any } : "skip"
   );
 
+  // ✅ جلب الحصص المباشرة للطالب
   const liveClasses = useQuery(
     api.liveClasses.liveClasses.getStudentLiveClasses,
     currentUser?._id ? { studentId: currentUser._id as any } : "skip"
   );
+
+  // ✅ جلب الجدول للمجموعة المحددة
+  const schedule = useQuery(
+    api.schedules.schedules.getScheduleByGroup,
+    showSchedule ? { groupId: showSchedule as any } : "skip"
+  );
+
+  // ✅ Mutation لتسجيل الحضور
+  const joinLiveClass = useMutation(api.liveClasses.liveClasses.joinLiveClass);
+
+  // ✅ دالة تسجيل الحضور
+  const handleJoinClass = async (liveClassId: string) => {
+    if (!currentUser?._id) return;
+    
+    setJoiningClassId(liveClassId);
+    try {
+      const result = await joinLiveClass({
+        liveClassId: liveClassId as any,
+        studentId: currentUser._id as any,
+      });
+
+      if (result.alreadyJoined) {
+        toast.info("✅ تم تسجيل حضورك مسبقاً");
+      } else {
+        toast.success("✅ تم تسجيل حضورك بنجاح (في انتظار تأكيد المعلم)");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "❌ فشل تسجيل الحضور");
+    } finally {
+      setJoiningClassId(null);
+    }
+  };
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) {
@@ -184,40 +220,85 @@ export default function StudentDashboard() {
   // الحصول على أيام الأسبوع للعرض
   const getDayLabel = (day: string) => DAYS[day] || day;
 
-  // عرض الجدول للمجموعة
-  const renderSchedule = (group: any) => {
-    const schedule = group.schedule;
-    if (!schedule || !schedule.weekDays) return null;
+  // ✅ دالة عرض الجدول
+  const renderScheduleTable = () => {
+    if (!schedule) return (
+      <div className="mt-3 p-4 text-center">
+        <Loader2 className="h-6 w-6 animate-spin mx-auto text-[#1a7a8a]" />
+        <p className="text-xs text-gray-400 mt-2">جاري تحميل الجدول...</p>
+      </div>
+    );
+
+    if (!schedule.weekDays || schedule.weekDays.length === 0) {
+      return (
+        <div className="mt-3 p-4 text-center border border-dashed border-gray-200 rounded-lg">
+          <Calendar className="h-8 w-8 mx-auto text-gray-300 mb-2" />
+          <p className="text-sm text-gray-400">لا يوجد جدول لهذه المجموعة</p>
+        </div>
+      );
+    }
 
     return (
       <div className="mt-3 space-y-3">
         <div className="border-t border-gray-200 pt-3">
+          <div className="flex items-center justify-end text-xs text-gray-400 mb-2">
+            <span>📅 الأسبوع الدراسي</span>
+          </div>
+
           <div className="space-y-2 max-h-60 overflow-y-auto">
             {schedule.weekDays.map((day: any) => (
-              <div key={day.day} className="bg-gray-50 rounded-lg p-2">
-                <p className="text-xs font-semibold text-[#1a7a8a] mb-1">
+              <div key={day.day} className="bg-gray-50 rounded-lg p-2 border border-gray-100">
+                <p className="text-xs font-semibold text-[#1a7a8a] mb-1 flex items-center gap-2">
+                  <Calendar className="h-3 w-3" />
                   {getDayLabel(day.day)}
+                  {day.periods && day.periods.length > 0 && (
+                    <span className="text-[10px] text-gray-400 font-normal">
+                      ({day.periods.length} حصة)
+                    </span>
+                  )}
                 </p>
                 {day.periods?.length === 0 ? (
-                  <p className="text-xs text-gray-400">لا توجد حصص</p>
+                  <p className="text-xs text-gray-400 px-2 py-1">لا توجد حصص</p>
                 ) : (
                   <div className="space-y-1">
                     {day.periods?.map((period: any, index: number) => (
-                      <div key={index} className="flex items-center justify-between text-xs">
+                      <div 
+                        key={index} 
+                        className={`flex items-center justify-between text-xs p-1.5 rounded ${
+                          period.isBreak ? "bg-amber-50" : "hover:bg-white"
+                        }`}
+                      >
                         <div className="flex items-center gap-2">
                           <Clock className="h-3 w-3 text-gray-400" />
-                          <span className="text-gray-600">
+                          <span className="text-gray-600 font-mono text-[10px]">
                             {period.startTime} - {period.endTime}
                           </span>
+                          {period.periodNumber && (
+                            <span className="text-gray-400 text-[10px]">
+                              #{period.periodNumber}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-700">
-                            {period.subject}
-                          </span>
-                          {period.teacherName && (
-                            <span className="text-gray-400 text-xs">
-                              👨‍🏫 {period.teacherName}
-                            </span>
+                          {period.isBreak ? (
+                            <span className="text-amber-600 text-[10px] font-medium">☕ استراحة</span>
+                          ) : (
+                            <>
+                              <span className="font-medium text-gray-700">
+                                {period.subject}
+                              </span>
+                              {period.teacherName && (
+                                <span className="text-gray-400 text-[10px] flex items-center gap-1">
+                                  <FaChalkboardTeacher className="h-2.5 w-2.5" />
+                                  {period.teacherName}
+                                </span>
+                              )}
+                              {period.room && (
+                                <span className="text-gray-400 text-[10px]">
+                                  🚪 {period.room}
+                                </span>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
@@ -227,6 +308,28 @@ export default function StudentDashboard() {
               </div>
             ))}
           </div>
+
+          {/* ✅ الإجازات */}
+          {schedule.holidays && schedule.holidays.length > 0 && (
+            <div className="mt-3 p-2 bg-amber-50 rounded-lg border border-amber-200">
+              <p className="text-xs font-medium text-amber-700 flex items-center gap-1">
+                <Ban className="h-3 w-3" />
+                الإجازات:
+              </p>
+              <div className="space-y-1 mt-1">
+                {schedule.holidays.map((holiday: any, idx: number) => (
+                  <p key={idx} className="text-xs text-amber-600">
+                    {new Date(holiday.date).toLocaleDateString('ar-EG', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    })} - {holiday.reason}
+                    {holiday.type === "holiday" ? " 🎉" : " ⚠️"}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -260,6 +363,24 @@ export default function StudentDashboard() {
       iconBg: "bg-purple-100",
       dateLabel: "تاريخ الامتحان",
     })),
+    // ✅ إضافة الحصص المباشرة للأحداث القادمة
+    ...(liveClasses || []).map((lc: any) => ({
+      ...lc,
+      type: "live" as const,
+      date: lc.startTime,
+      label: lc.status === "live" ? "مباشر الآن" : "حصة مباشرة",
+      icon: Video,
+      color: "green",
+      bgColor: "bg-green-50",
+      borderColor: "border-green-200",
+      textColor: "text-green-600",
+      iconBg: "bg-green-100",
+      dateLabel: "تاريخ الحصة",
+      title: lc.title,
+      link: lc.link,
+      groupName: lc.groupName,
+      status: lc.status,
+    })),
   ].sort((a, b) => a.date - b.date);
 
   // فلترة الأحداث حسب التاب المحدد
@@ -267,6 +388,7 @@ export default function StudentDashboard() {
     if (activeEventTab === "all") return true;
     if (activeEventTab === "assignments") return event.type === "assignment";
     if (activeEventTab === "exams") return event.type === "exam";
+    if (activeEventTab === "live") return event.type === "live";
     return true;
   });
 
@@ -274,6 +396,7 @@ export default function StudentDashboard() {
   const stats = {
     assignments: upcomingAssignments?.length || 0,
     exams: upcomingExams?.length || 0,
+    live: liveClasses?.filter((lc: any) => lc.status === "live" || lc.status === "scheduled").length || 0,
     total: allUpcomingEvents.length,
     groups: studentGroups?.length || 0,
     unread: unreadCount || 0,
@@ -293,7 +416,6 @@ export default function StudentDashboard() {
           <div>
             <h1 className="text-2xl font-bold text-[#001f24]">لوحة التحكم</h1>
             <p className="text-sm text-gray-500 mt-0.5">مرحباً بك، {currentUser.name}</p>
-            {/* ✅ عرض حالة الاشتراك */}
             {!hasActiveSubscription && (
               <div className="mt-1 text-xs text-amber-600 bg-amber-100 px-3 py-1 rounded-full inline-flex items-center gap-1">
                 <CreditCard className="h-3 w-3" />
@@ -302,7 +424,6 @@ export default function StudentDashboard() {
             )}
           </div>
           <div className="flex items-center gap-3">
-
             <button className="relative p-2 bg-white rounded-xl border border-[#c0c8c9] hover:border-[#1a7a8a] transition-colors">
               <Bell className="h-5 w-5 text-gray-600" />
               {stats.unread > 0 && (
@@ -311,18 +432,14 @@ export default function StudentDashboard() {
                 </span>
               )}
             </button>
-
-
             <div className="w-10 h-10 rounded-xl bg-[#e0f5f7] flex items-center justify-center cursor-pointer">
               <span className="font-bold text-[#1a7a8a]">
                 {currentUser.name?.charAt(0)?.toUpperCase() || "S"}
               </span>
             </div>
-
           </div>
         </div>
 
-        {/* ✅ لو مدفعش أو في انتظار الموافقة → عرض رسالة بدلاً من المحتوى */}
         {!showContent ? (
           <Card className="p-12 text-center border-2 border-dashed border-amber-300 bg-amber-50/50">
             <div className="flex flex-col items-center gap-4">
@@ -363,7 +480,6 @@ export default function StudentDashboard() {
             </div>
           </Card>
         ) : (
-          // ✅ المحتوى الكامل (يظهر فقط عند الاشتراك النشط)
           <>
             {/* Stats Cards */}
             <div className="grid grid-cols-4 gap-4 mb-6">
@@ -387,14 +503,14 @@ export default function StudentDashboard() {
               </Card>
               <Card>
                 <CardContent className="p-3 text-center">
-                  <p className="text-xl font-bold text-green-600">{stats.total}</p>
-                  <p className="text-xs text-gray-500">إجمالي الأحداث</p>
+                  <p className="text-xl font-bold text-green-600">{stats.live}</p>
+                  <p className="text-xs text-gray-500">حصص مباشرة</p>
                 </CardContent>
               </Card>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column - 2/3 of page */}
+              {/* Left Column - 2/3 */}
               <div className="lg:col-span-2 space-y-6">
                 {/* My Groups */}
                 <div>
@@ -416,7 +532,6 @@ export default function StudentDashboard() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {studentGroups.map((group: any) => {
-                        const isScheduleOpen = showSchedule === group._id;
                         const holidays = group.schedule?.holidays || [];
 
                         return (
@@ -427,9 +542,7 @@ export default function StudentDashboard() {
                                   <CardTitle className="text-base">{group.name}</CardTitle>
                                   <p className="text-xs text-gray-500">{group.subject}</p>
                                 </div>
-                                <Badge className="bg-green-100 text-green-700">
-                                  نشط
-                                </Badge>
+                                <Badge className="bg-green-100 text-green-700">نشط</Badge>
                               </div>
                             </CardHeader>
                             <CardContent>
@@ -444,9 +557,7 @@ export default function StudentDashboard() {
                                     <span>المعلم: {group.supervisorName}</span>
                                   </div>
                                 )}
-                                <div className="text-gray-500 text-xs">
-                                  {group.gradeName}
-                                </div>
+                                <div className="text-gray-500 text-xs">{group.gradeName}</div>
 
                                 {/* الإجازات */}
                                 {holidays.length > 0 && (
@@ -465,38 +576,60 @@ export default function StudentDashboard() {
                                   </div>
                                 )}
 
+                                {/* الحصص المباشرة للمجموعة */}
                                 {group.liveClasses && group.liveClasses.length > 0 && (
                                   <div className="mt-3 pt-3 border-t border-gray-200">
                                     <p className="text-xs font-medium text-[#1a7a8a] flex items-center gap-1 mb-2">
-                                      <PlayCircle className="h-3 w-3" />
-                                      الحصص المباشرة القادمة:
+                                      <Video className="h-3 w-3" />
+                                      الحصص المباشرة:
+                                      <Badge className="bg-[#1a7a8a] text-white text-[10px]">
+                                        {group.liveClasses.filter((lc: any) => lc.status === "live" || lc.status === "scheduled").length}
+                                      </Badge>
                                     </p>
                                     <div className="space-y-2">
-                                      {group.liveClasses.filter((lc: any) => lc.status === "live" || lc.status === "scheduled").map((lc: any) => (
-                                        <div key={lc._id} className="flex items-center justify-between p-2 bg-blue-50/50 rounded-lg border border-blue-100">
-                                          <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-medium text-[#001f24] truncate">{lc.title}</p>
-                                            <p className="text-[10px] text-gray-500">
-                                              {new Date(lc.startTime).toLocaleString('ar-EG')}
-                                              {lc.status === "live" && (
-                                                <span className="text-green-600 font-medium mr-2">• مباشر الآن</span>
-                                              )}
-                                            </p>
-                                          </div>
-                                          <a
-                                            href={lc.link}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1 shrink-0 ${lc.status === "live"
-                                              ? "bg-green-600 hover:bg-green-700 text-white animate-pulse"
-                                              : "bg-[#1a7a8a] hover:bg-[#15707e] text-white"
-                                              }`}
-                                          >
-                                            <PlayCircle className="h-3 w-3" />
-                                            {lc.status === "live" ? "انضم الآن" : "عرض"}
-                                          </a>
-                                        </div>
-                                      ))}
+                                      {group.liveClasses
+                                        .filter((lc: any) => lc.status === "live" || lc.status === "scheduled")
+                                        .map((lc: any) => {
+                                          const isLive = lc.status === "live";
+                                          const isJoining = joiningClassId === lc._id;
+                                          
+                                          return (
+                                            <div key={lc._id} className="flex items-center justify-between p-2 bg-blue-50/50 rounded-lg border border-blue-100">
+                                              <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-medium text-[#001f24] truncate">{lc.title}</p>
+                                                <p className="text-[10px] text-gray-500">
+                                                  {new Date(lc.startTime).toLocaleString('ar-EG', {
+                                                    day: 'numeric',
+                                                    month: 'short',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                  })}
+                                                  {lc.status === "live" && (
+                                                    <span className="text-green-600 font-medium mr-2">• مباشر الآن 🔴</span>
+                                                  )}
+                                                </p>
+                                              </div>
+                                              <Button
+                                                size="sm"
+                                                onClick={() => {
+                                                  handleJoinClass(lc._id);
+                                                  setTimeout(() => {
+                                                    window.open(lc.link, "_blank");
+                                                  }, 500);
+                                                }}
+                                                disabled={isJoining}
+                                                className={`gap-2 ${isLive ? "bg-green-600 hover:bg-green-700" : "bg-[#1a7a8a] hover:bg-[#15707e]"}`}
+                                              >
+                                                {isJoining ? (
+                                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                  <PlayCircle className="h-4 w-4" />
+                                                )}
+                                                {isLive ? "انضم الآن" : "عرض"}
+                                              </Button>
+                                            </div>
+                                          );
+                                        })}
                                     </div>
                                   </div>
                                 )}
@@ -506,11 +639,11 @@ export default function StudentDashboard() {
                                   variant="outline"
                                   size="sm"
                                   className="w-full mt-2 gap-2"
-                                  onClick={() => setShowSchedule(isScheduleOpen ? null : group._id)}
+                                  onClick={() => setShowSchedule(showSchedule === group._id ? null : group._id)}
                                 >
                                   <Calendar className="h-4 w-4" />
-                                  {isScheduleOpen ? "إخفاء الجدول" : "عرض الجدول"}
-                                  {isScheduleOpen ? (
+                                  {showSchedule === group._id ? "إخفاء الجدول" : "عرض الجدول"}
+                                  {showSchedule === group._id ? (
                                     <ChevronUp className="h-4 w-4" />
                                   ) : (
                                     <ChevronDown className="h-4 w-4" />
@@ -518,7 +651,7 @@ export default function StudentDashboard() {
                                 </Button>
 
                                 {/* عرض الجدول */}
-                                {isScheduleOpen && renderSchedule(group)}
+                                {showSchedule === group._id && renderScheduleTable()}
                               </div>
                             </CardContent>
                           </Card>
@@ -529,7 +662,7 @@ export default function StudentDashboard() {
                 </div>
               </div>
 
-              {/* Right Column - 1/3 of page */}
+              {/* Right Column - 1/3 */}
               <div className="space-y-6">
                 {/* Upcoming Events */}
                 <Card>
@@ -539,18 +672,16 @@ export default function StudentDashboard() {
                         <Calendar className="h-4 w-4 text-[#1a7a8a]" />
                         الأحداث القادمة
                       </CardTitle>
-                      <Badge className="bg-[#1a7a8a] text-white">
-                        {stats.total}
-                      </Badge>
+                      <Badge className="bg-[#1a7a8a] text-white">{stats.total}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {/* Tabs */}
                     <Tabs defaultValue="all" className="w-full" onValueChange={(value) => setActiveEventTab(value as any)}>
-                      <TabsList className="grid grid-cols-3 mb-4">
+                      <TabsList className="grid grid-cols-4 mb-4">
                         <TabsTrigger value="all">الكل</TabsTrigger>
                         <TabsTrigger value="assignments">واجبات</TabsTrigger>
                         <TabsTrigger value="exams">امتحانات</TabsTrigger>
+                        <TabsTrigger value="live">مباشر</TabsTrigger>
                       </TabsList>
 
                       <TabsContent value="all" className="mt-0">
@@ -563,9 +694,12 @@ export default function StudentDashboard() {
                           ) : (
                             filteredEvents.map((event: any) => {
                               const Icon = event.icon;
+                              const isLive = event.status === "live";
+                              const isJoining = joiningClassId === event._id;
+                              
                               return (
                                 <div
-                                  key={event._id}
+                                  key={event._id || event.id}
                                   className={`p-3 rounded-lg border ${event.bgColor} ${event.borderColor}`}
                                 >
                                   <div className="flex items-start gap-3">
@@ -573,21 +707,41 @@ export default function StudentDashboard() {
                                       <Icon className={`h-4 w-4 ${event.textColor}`} />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <p className="text-sm font-medium text-[#001f24]">
-                                          {event.title}
-                                        </p>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="text-sm font-medium text-[#001f24]">{event.title}</p>
                                         <Badge className={`text-[10px] ${event.bgColor} ${event.textColor} border-0`}>
                                           {event.label}
                                         </Badge>
+                                        {event.status === "live" && (
+                                          <Badge className="bg-red-500 text-white text-[10px] animate-pulse">
+                                            🔴 مباشر
+                                          </Badge>
+                                        )}
                                       </div>
                                       <p className="text-xs text-gray-500">
                                         {event.dateLabel}: {new Date(event.date).toLocaleDateString('ar-EG')}
                                       </p>
-                                      {event.subject && (
-                                        <p className="text-xs text-gray-400">
-                                          المادة: {event.subject}
-                                        </p>
+                                      {event.subject && <p className="text-xs text-gray-400">المادة: {event.subject}</p>}
+                                      {event.groupName && <p className="text-xs text-gray-400">المجموعة: {event.groupName}</p>}
+                                      {event.type === "live" && event.link && (
+                                        <Button
+                                          size="sm"
+                                          onClick={() => {
+                                            handleJoinClass(event._id);
+                                            setTimeout(() => {
+                                              window.open(event.link, "_blank");
+                                            }, 500);
+                                          }}
+                                          disabled={isJoining}
+                                          className={`mt-2 ${isLive ? "bg-green-600 hover:bg-green-700" : "bg-[#1a7a8a] hover:bg-[#15707e]"}`}
+                                        >
+                                          {isJoining ? (
+                                            <Loader2 className="h-3 w-3 animate-spin ml-1" />
+                                          ) : (
+                                            <PlayCircle className="h-3 w-3 ml-1" />
+                                          )}
+                                          {isLive ? "انضم الآن" : "عرض الحصة"}
+                                        </Button>
                                       )}
                                     </div>
                                   </div>
@@ -618,17 +772,11 @@ export default function StudentDashboard() {
                                       <Icon className={`h-4 w-4 ${event.textColor}`} />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium text-[#001f24]">
-                                        {event.title}
-                                      </p>
+                                      <p className="text-sm font-medium text-[#001f24]">{event.title}</p>
                                       <p className="text-xs text-gray-500">
                                         {event.dateLabel}: {new Date(event.date).toLocaleDateString('ar-EG')}
                                       </p>
-                                      {event.subject && (
-                                        <p className="text-xs text-gray-400">
-                                          المادة: {event.subject}
-                                        </p>
-                                      )}
+                                      {event.subject && <p className="text-xs text-gray-400">المادة: {event.subject}</p>}
                                     </div>
                                   </div>
                                 </div>
@@ -658,16 +806,78 @@ export default function StudentDashboard() {
                                       <Icon className={`h-4 w-4 ${event.textColor}`} />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium text-[#001f24]">
-                                        {event.title}
-                                      </p>
+                                      <p className="text-sm font-medium text-[#001f24]">{event.title}</p>
                                       <p className="text-xs text-gray-500">
                                         {event.dateLabel}: {new Date(event.date).toLocaleDateString('ar-EG')}
                                       </p>
-                                      {event.subject && (
-                                        <p className="text-xs text-gray-400">
-                                          المادة: {event.subject}
-                                        </p>
+                                      {event.subject && <p className="text-xs text-gray-400">المادة: {event.subject}</p>}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="live" className="mt-0">
+                        <div className="space-y-2 max-h-80 overflow-y-auto">
+                          {filteredEvents.length === 0 ? (
+                            <div className="text-center py-6">
+                              <Video className="h-8 w-8 mx-auto text-gray-300 mb-2" />
+                              <p className="text-sm text-gray-500">لا توجد حصص مباشرة</p>
+                            </div>
+                          ) : (
+                            filteredEvents.map((event: any) => {
+                              const Icon = event.icon;
+                              const isLive = event.status === "live";
+                              const isJoining = joiningClassId === event._id;
+                              
+                              return (
+                                <div
+                                  key={event._id || event.id}
+                                  className={`p-3 rounded-lg border ${isLive ? 'border-green-500 bg-green-50' : event.bgColor} ${event.borderColor}`}
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <div className={`w-8 h-8 rounded-full ${isLive ? 'bg-green-100' : event.iconBg} flex items-center justify-center shrink-0`}>
+                                      <Icon className={`h-4 w-4 ${isLive ? 'text-green-600' : event.textColor}`} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="text-sm font-medium text-[#001f24]">{event.title}</p>
+                                        {isLive ? (
+                                          <Badge className="bg-red-500 text-white text-[10px] animate-pulse">
+                                            🔴 مباشر الآن
+                                          </Badge>
+                                        ) : (
+                                          <Badge className={`text-[10px] ${event.bgColor} ${event.textColor} border-0`}>
+                                            مجدولة
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-gray-500">
+                                        {event.dateLabel}: {new Date(event.date).toLocaleString('ar-EG')}
+                                      </p>
+                                      {event.groupName && <p className="text-xs text-gray-400">المجموعة: {event.groupName}</p>}
+                                      {event.link && (
+                                        <Button
+                                          size="sm"
+                                          onClick={() => {
+                                            handleJoinClass(event._id);
+                                            setTimeout(() => {
+                                              window.open(event.link, "_blank");
+                                            }, 500);
+                                          }}
+                                          disabled={isJoining}
+                                          className={`mt-2 ${isLive ? "bg-green-600 hover:bg-green-700" : "bg-[#1a7a8a] hover:bg-[#15707e]"}`}
+                                        >
+                                          {isJoining ? (
+                                            <Loader2 className="h-3 w-3 animate-spin ml-1" />
+                                          ) : (
+                                            <PlayCircle className="h-3 w-3 ml-1" />
+                                          )}
+                                          {isLive ? "انضم الآن" : "عرض الحصة"}
+                                        </Button>
                                       )}
                                     </div>
                                   </div>
@@ -681,7 +891,7 @@ export default function StudentDashboard() {
                   </CardContent>
                 </Card>
 
-                {/* ✅ Notifications - Dynamic from Database */}
+                {/* Notifications */}
                 <Card>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
@@ -695,9 +905,7 @@ export default function StudentDashboard() {
                         )}
                       </CardTitle>
                       <Link href="/student/notifications">
-                        <span className="text-xs text-[#1a7a8a] hover:underline cursor-pointer">
-                          عرض الكل
-                        </span>
+                        <span className="text-xs text-[#1a7a8a] hover:underline cursor-pointer">عرض الكل</span>
                       </Link>
                     </div>
                   </CardHeader>
@@ -715,10 +923,11 @@ export default function StudentDashboard() {
                         return (
                           <div
                             key={notification._id}
-                            className={`p-2.5 rounded-lg border transition-colors ${notification.status === "read"
-                              ? "bg-white border-gray-200"
-                              : "bg-[#e0f5f7] border-[#1a7a8a]/20 shadow-sm"
-                              }`}
+                            className={`p-2.5 rounded-lg border transition-colors ${
+                              notification.status === "read"
+                                ? "bg-white border-gray-200"
+                                : "bg-[#e0f5f7] border-[#1a7a8a]/20 shadow-sm"
+                            }`}
                           >
                             <div className="flex items-start gap-2.5">
                               <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${colorClasses}`}>
@@ -737,9 +946,7 @@ export default function StudentDashboard() {
                                     <Badge className="bg-amber-500 text-white text-[8px] px-1 py-0">هام</Badge>
                                   )}
                                 </p>
-                                <p className="text-xs text-gray-500 truncate">
-                                  {notification.message}
-                                </p>
+                                <p className="text-xs text-gray-500 truncate">{notification.message}</p>
                                 <p className="text-[10px] text-gray-400 mt-0.5">
                                   {getTimeAgo(notification.createdAt)}
                                 </p>

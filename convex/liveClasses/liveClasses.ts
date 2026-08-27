@@ -94,7 +94,7 @@ export const getLiveClassById = query({
   },
 });
 
-// ✅ جلب عدد الطلاب المسجلين في الحصة
+// ✅ جلب حضور الحصة مع حالة التأكيد
 export const getLiveClassAttendance = query({
   args: { liveClassId: v.id("liveClasses") },
   handler: async (ctx, args) => {
@@ -113,18 +113,216 @@ export const getLiveClassAttendance = query({
       throw new Error("غير مصرح");
     }
 
-    // جلب أسماء الطلاب الحاضرين
-    const attendanceWithNames = await Promise.all(
+    // ✅ جلب أسماء الطلاب مع حالة التأكيد
+    const attendanceWithDetails = await Promise.all(
       liveClass.attendance.map(async (att) => {
         const student = await ctx.db.get(att.studentId);
         return {
           ...att,
           studentName: student?.name || "غير معروف",
+          studentEmail: student?.email || "",
+          studentId: att.studentId,
+          // ✅ إضافة حالة التأكيد مع ترجمة
+          statusLabel: att.status === "pending" ? "قيد المراجعة" :
+                       att.status === "approved" ? "✅ حضر" :
+                       att.status === "rejected" ? "❌ لم يحضر" : "غير محدد",
+          statusColor: att.status === "pending" ? "bg-amber-100 text-amber-700" :
+                       att.status === "approved" ? "bg-green-100 text-green-700" :
+                       att.status === "rejected" ? "bg-red-100 text-red-600" : "bg-gray-100",
         };
       })
     );
 
-    return attendanceWithNames;
+    return attendanceWithDetails;
+  },
+});
+
+// ✅ جلب الحصص المباشرة للطالب
+export const getStudentLiveClasses = query({
+  args: { studentId: v.id("users") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("غير مصرح");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!user || user.role !== "student") {
+      throw new Error("مطلوب صلاحيات طالب");
+    }
+
+    // ✅ جلب جميع المجموعات التي فيها الطالب
+    const allGroups = await ctx.db.query("groups").collect();
+    const studentGroups = allGroups.filter((g) =>
+      g.students && g.students.includes(args.studentId)
+    );
+
+    const groupIds = studentGroups.map((g) => g._id);
+
+    // ✅ جلب الحصص المباشرة لهذه المجموعات
+    let liveClasses = await ctx.db
+      .query("liveClasses")
+      .collect();
+
+    liveClasses = liveClasses.filter((lc) =>
+      groupIds.includes(lc.groupId) &&
+      (lc.status === "scheduled" || lc.status === "live")
+    );
+
+    // جلب أسماء المجموعات
+    const classesWithDetails = await Promise.all(
+      liveClasses.map(async (lc) => {
+        const group = await ctx.db.get(lc.groupId);
+        return {
+          ...lc,
+          groupName: group?.name || "غير محدد",
+        };
+      })
+    );
+
+    return classesWithDetails.sort((a, b) => a.startTime - b.startTime);
+  },
+});
+
+
+// ✅ جلب سجل حضور الطالب مع الحالة النهائية (محسّن)
+export const getStudentAttendance = query({
+  args: { studentId: v.id("users") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("غير مصرح");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!user || user.role !== "student") {
+      throw new Error("مطلوب صلاحيات طالب");
+    }
+
+    if (user._id !== args.studentId) {
+      throw new Error("غير مصرح");
+    }
+
+    // ✅ جلب جميع الحصص
+    const liveClasses = await ctx.db
+      .query("liveClasses")
+      .collect();
+
+    // ✅ فلترة الحصص التي حضرها الطالب
+    const attendedClasses = [];
+
+    for (const lc of liveClasses) {
+      // ✅ البحث عن حضور الطالب في هذه الحصة
+      const att = lc.attendance.find((a) => a.studentId === args.studentId);
+      
+      if (att) {
+        const group = await ctx.db.get(lc.groupId);
+        
+        // ✅ تحديد حالة الحضور (من attendance)
+        const attendanceStatus = att.status || "pending";
+        
+        attendedClasses.push({
+          ...lc,
+          groupName: group?.name || "غير محدد",
+          joinedAt: att.joinedAt || 0,
+          leftAt: att.leftAt,
+          duration: att.duration,
+          attendanceStatus: attendanceStatus, // ✅ تأكد من وجود هذا الحقل
+          statusLabel: attendanceStatus === "pending" ? "⏳ قيد المراجعة" :
+                       attendanceStatus === "approved" ? "✅ حضرت" :
+                       attendanceStatus === "rejected" ? "❌ لم تحضر" : "غير محدد",
+          statusColor: attendanceStatus === "pending" ? "bg-amber-100 text-amber-700" :
+                       attendanceStatus === "approved" ? "bg-green-100 text-green-700" :
+                       attendanceStatus === "rejected" ? "bg-red-100 text-red-600" : "bg-gray-100",
+        });
+      }
+    }
+
+    // ✅ ترتيب حسب تاريخ الانضمام (الأحدث أولاً)
+    return attendedClasses.sort((a, b) => {
+      const aTime = a.joinedAt || 0;
+      const bTime = b.joinedAt || 0;
+      return bTime - aTime;
+    });
+  },
+});
+
+
+// ✅ جلب حضور أبناء ولي الأمر
+export const getChildrenAttendance = query({
+  args: {
+    parentId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("غير مصرح");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!user || user.role !== "parent") {
+      throw new Error("مطلوب صلاحيات ولي أمر");
+    }
+
+    if (user._id !== args.parentId) {
+      throw new Error("غير مصرح");
+    }
+
+    // ✅ جلب أبناء ولي الأمر
+    const links = await ctx.db
+      .query("parentStudentLinks")
+      .withIndex("by_parent", (q) => q.eq("parentId", args.parentId))
+      .collect();
+
+    const childIds = links.map((l) => l.studentId);
+
+    if (childIds.length === 0) {
+      return [];
+    }
+
+    // ✅ جلب جميع الحصص المباشرة
+    const liveClasses = await ctx.db
+      .query("liveClasses")
+      .collect();
+
+    // ✅ فلترة الحصص التي تخص أبناء ولي الأمر
+    const attendanceRecords = [];
+
+    for (const lc of liveClasses) {
+      for (const childId of childIds) {
+        const att = lc.attendance.find((a) => a.studentId === childId);
+        if (att) {
+          const group = await ctx.db.get(lc.groupId);
+          const teacher = await ctx.db.get(lc.teacherId);
+
+          attendanceRecords.push({
+            _id: `${lc._id}_${childId}`,
+            studentId: childId,
+            title: lc.title,
+            groupName: group?.name || "غير محدد",
+            teacherName: teacher?.name || "غير محدد",
+            startTime: lc.startTime,
+            endTime: lc.endTime,
+            status: att.status || "pending",
+            joinedAt: att.joinedAt,
+            duration: att.duration,
+            recordingLink: lc.recordingLink,
+            createdAt: lc.createdAt,
+          });
+        }
+      }
+    }
+
+    // ✅ ترتيب حسب تاريخ الانضمام (الأحدث أولاً)
+    return attendanceRecords.sort(
+      (a, b) => (b.joinedAt || 0) - (a.joinedAt || 0),
+    );
   },
 });
 
@@ -269,7 +467,8 @@ export const updateLiveClassStatus = mutation({
   },
 });
 
-// ✅ تسجيل حضور طالب في الحصة
+
+// ✅ تسجيل حضور مؤقت للطالب (بانتظار تأكيد المعلم)
 export const joinLiveClass = mutation({
   args: {
     liveClassId: v.id("liveClasses"),
@@ -279,6 +478,19 @@ export const joinLiveClass = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("غير مصرح");
 
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!user || user.role !== "student") {
+      throw new Error("مطلوب صلاحيات طالب");
+    }
+
+    if (user._id !== args.studentId) {
+      throw new Error("غير مصرح");
+    }
+
     const liveClass = await ctx.db.get(args.liveClassId);
     if (!liveClass) throw new Error("الحصة غير موجودة");
 
@@ -286,26 +498,27 @@ export const joinLiveClass = mutation({
       throw new Error("الحصة غير متاحة للدخول");
     }
 
-    // التحقق من أن الطالب في المجموعة
     const group = await ctx.db.get(liveClass.groupId);
     if (!group || !group.students.includes(args.studentId)) {
       throw new Error("الطالب غير مسجل في هذه المجموعة");
     }
 
-    // التحقق من عدم تسجيل الحضور مسبقاً
-    const alreadyJoined = liveClass.attendance.some(
+    // ✅ التحقق من وجود تسجيل سابق
+    const existingAttendance = liveClass.attendance.find(
       (a) => a.studentId === args.studentId
     );
 
-    if (alreadyJoined) {
-      throw new Error("تم تسجيل حضورك بالفعل");
+    if (existingAttendance) {
+      return { success: true, alreadyJoined: true, status: existingAttendance.status };
     }
 
+    // ✅ تسجيل حضور مؤقت (pending)
     const updatedAttendance = [
       ...liveClass.attendance,
       {
         studentId: args.studentId,
         joinedAt: Date.now(),
+        status: "pending" as const, // ✅ في انتظار تأكيد المعلم
       },
     ];
 
@@ -314,7 +527,7 @@ export const joinLiveClass = mutation({
       updatedAt: Date.now(),
     });
 
-    return { success: true };
+    return { success: true, alreadyJoined: false, status: "pending" };
   },
 });
 
@@ -426,58 +639,16 @@ export const deleteLiveClass = mutation({
 
 
 
-// ✅ جلب الحصص المباشرة للطالب
-export const getStudentLiveClasses = query({
-  args: { studentId: v.id("users") },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("غير مصرح");
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-      .first();
-
-    if (!user || user.role !== "student") {
-      throw new Error("مطلوب صلاحيات طالب");
-    }
-
-    // ✅ جلب جميع المجموعات التي فيها الطالب
-    const allGroups = await ctx.db.query("groups").collect();
-    const studentGroups = allGroups.filter((g) =>
-      g.students && g.students.includes(args.studentId)
-    );
-
-    const groupIds = studentGroups.map((g) => g._id);
-
-    // ✅ جلب الحصص المباشرة لهذه المجموعات
-    let liveClasses = await ctx.db
-      .query("liveClasses")
-      .collect();
-
-    liveClasses = liveClasses.filter((lc) =>
-      groupIds.includes(lc.groupId) &&
-      (lc.status === "scheduled" || lc.status === "live")
-    );
-
-    // جلب أسماء المجموعات
-    const classesWithDetails = await Promise.all(
-      liveClasses.map(async (lc) => {
-        const group = await ctx.db.get(lc.groupId);
-        return {
-          ...lc,
-          groupName: group?.name || "غير محدد",
-        };
-      })
-    );
-
-    return classesWithDetails.sort((a, b) => a.startTime - b.startTime);
+// ✅ تأكيد حضور الطالب (للمعلم)
+export const confirmStudentAttendance = mutation({
+  args: {
+    liveClassId: v.id("liveClasses"),
+    studentId: v.id("users"),
+    status: v.union(
+      v.literal("approved"),
+      v.literal("rejected")
+    ),
   },
-});
-
-// ✅ جلب سجل حضور الطالب
-export const getStudentAttendance = query({
-  args: { studentId: v.id("users") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("غير مصرح");
@@ -487,39 +658,41 @@ export const getStudentAttendance = query({
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .first();
 
-    if (!user || user.role !== "student") {
-      throw new Error("مطلوب صلاحيات طالب");
+    if (!user || user.role !== "teacher") {
+      throw new Error("مطلوب صلاحيات معلم");
     }
 
-    // ✅ جلب جميع الحصص التي حضرها الطالب
-    const liveClasses = await ctx.db
-      .query("liveClasses")
-      .collect();
+    const liveClass = await ctx.db.get(args.liveClassId);
+    if (!liveClass) throw new Error("الحصة غير موجودة");
 
-    const attendedClasses = liveClasses.filter((lc) =>
-      lc.attendance.some((a) => a.studentId === args.studentId)
+    if (liveClass.teacherId !== user._id) {
+      throw new Error("غير مصرح لك بتأكيد حضور هذه الحصة");
+    }
+
+    // ✅ البحث عن الطالب في قائمة الحضور
+    const attendanceIndex = liveClass.attendance.findIndex(
+      (a) => a.studentId === args.studentId
     );
 
-    const attendanceHistory = await Promise.all(
-      attendedClasses.map(async (lc) => {
-        const group = await ctx.db.get(lc.groupId);
-        const att = lc.attendance.find((a) => a.studentId === args.studentId);
-        return {
-          ...lc,
-          groupName: group?.name || "غير محدد",
-          joinedAt: att?.joinedAt || 0,
-          leftAt: att?.leftAt,
-          duration: att?.duration,
-        };
-      })
-    );
+    if (attendanceIndex === -1) {
+      throw new Error("الطالب لم يسجل حضوره بعد");
+    }
 
-    // ✅ إصلاح: التحقق من وجود joinedAt قبل المقارنة
-    return attendanceHistory.sort((a, b) => {
-      const aTime = a.joinedAt || 0;
-      const bTime = b.joinedAt || 0;
-      return bTime - aTime;
+    // ✅ تحديث حالة الطالب
+    const updatedAttendance = [...liveClass.attendance];
+    updatedAttendance[attendanceIndex] = {
+      ...updatedAttendance[attendanceIndex],
+      status: args.status,
+      confirmedBy: user._id,
+      confirmedAt: Date.now(),
+    };
+
+    await ctx.db.patch(args.liveClassId, {
+      attendance: updatedAttendance,
+      updatedAt: Date.now(),
     });
+
+    return { success: true };
   },
 });
 
@@ -531,10 +704,14 @@ export const liveClasses = {
   getTeacherLiveClasses,
   getLiveClassById,
   getLiveClassAttendance,
+  getStudentLiveClasses,
+  getStudentAttendance,
+  getChildrenAttendance,
   createLiveClass,
   updateLiveClassStatus,
   joinLiveClass,
   leaveLiveClass,
   updateRecordingLink,
   deleteLiveClass,
+  confirmStudentAttendance
 };

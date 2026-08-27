@@ -3,7 +3,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import {
@@ -28,9 +28,11 @@ import {
   Eye,
   PlayCircle,
   ExternalLink,
+  Clock as ClockIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
+import { toast } from "sonner";
 
 const StatusBadge = ({ status }: { status: string }) => {
   switch (status) {
@@ -45,9 +47,24 @@ const StatusBadge = ({ status }: { status: string }) => {
   }
 };
 
+// ✅ دالة عرض حالة الحضور للطالب
+const getAttendanceStatusBadge = (status: string) => {
+  switch (status) {
+    case "pending":
+      return <Badge className="bg-amber-100 text-amber-700 border-amber-200">⏳ قيد المراجعة</Badge>;
+    case "approved":
+      return <Badge className="bg-green-100 text-green-700 border-green-200">✅ حضرت</Badge>;
+    case "rejected":
+      return <Badge className="bg-red-100 text-red-600 border-red-200">❌ لم تحضر</Badge>;
+    default:
+      return <Badge className="bg-gray-100 text-gray-600">غير محدد</Badge>;
+  }
+};
+
 export default function StudentAttendancePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [joiningClassId, setJoiningClassId] = useState<string | null>(null);
 
   const currentUser = useQuery(api.user.auth.getCurrentUser);
 
@@ -63,6 +80,9 @@ export default function StudentAttendancePage() {
     currentUser?._id ? { studentId: currentUser._id as any } : "skip"
   );
 
+  // ✅ Mutation لتسجيل الحضور
+  const joinLiveClass = useMutation(api.liveClasses.liveClasses.joinLiveClass);
+
   if (!currentUser || attendanceHistory === undefined || upcomingClasses === undefined) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -71,14 +91,28 @@ export default function StudentAttendancePage() {
     );
   }
 
-  // ✅ تصفية سجل الحضور
-  const filteredHistory = attendanceHistory?.filter((item: any) => {
-    if (searchQuery && !item.title.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
+  // ✅ دالة تسجيل الحضور عند الضغط على "انضم الآن"
+  const handleJoinClass = async (liveClassId: string) => {
+    if (!currentUser?._id) return;
+    
+    setJoiningClassId(liveClassId);
+    try {
+      const result = await joinLiveClass({
+        liveClassId: liveClassId as any,
+        studentId: currentUser._id as any,
+      });
+
+      if (result.alreadyJoined) {
+        toast.info("✅ تم تسجيل حضورك مسبقاً");
+      } else {
+        toast.success("✅ تم تسجيل حضورك بنجاح (في انتظار تأكيد المعلم)");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "❌ فشل تسجيل الحضور");
+    } finally {
+      setJoiningClassId(null);
     }
-    if (selectedStatus === "attended") return true;
-    return true;
-  });
+  };
 
   const stats = {
     total: attendanceHistory?.length || 0,
@@ -130,54 +164,67 @@ export default function StudentAttendancePage() {
               الحصص القادمة
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {upcomingClasses.slice(0, 4).map((cls: any) => (
-                <Card key={cls._id} className={`border ${cls.status === "live" ? "border-green-500 border-2" : "border-[#c0c8c9]"}`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-[#001f24] truncate">{cls.title}</p>
-                          <StatusBadge status={cls.status} />
+              {upcomingClasses.slice(0, 4).map((cls: any) => {
+                const isLive = cls.status === "live";
+                const isJoining = joiningClassId === cls._id;
+                
+                return (
+                  <Card key={cls._id} className={`border ${isLive ? "border-green-500 border-2" : "border-[#c0c8c9]"}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-[#001f24] truncate">{cls.title}</p>
+                            <StatusBadge status={cls.status} />
+                          </div>
+                          <p className="text-sm text-gray-500">{cls.groupName}</p>
+                          <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {format(new Date(cls.startTime), "dd MMM yyyy", { locale: ar })}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {format(new Date(cls.startTime), "HH:mm", { locale: ar })}
+                            </span>
+                          </div>
                         </div>
-                        <p className="text-sm text-gray-500">{cls.groupName}</p>
-                        <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {format(new Date(cls.startTime), "dd MMM yyyy", { locale: ar })}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {format(new Date(cls.startTime), "HH:mm", { locale: ar })}
-                          </span>
+                        <div className="flex flex-col gap-2 shrink-0">
+                          {/* ✅ زر انضم الآن - يسجل الحضور ويفتح الرابط */}
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              handleJoinClass(cls._id);
+                              setTimeout(() => {
+                                window.open(cls.link, "_blank");
+                              }, 500);
+                            }}
+                            disabled={isJoining}
+                            className={`gap-2 ${isLive ? "bg-green-600 hover:bg-green-700" : "bg-[#1a7a8a] hover:bg-[#15707e]"}`}
+                          >
+                            {isJoining ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <PlayCircle className="h-4 w-4" />
+                            )}
+                            {isLive ? "انضم الآن" : "عرض"}
+                          </Button>
+                          {/* ✅ رابط مباشر بدون تسجيل الحضور (اختياري) */}
+                          <a
+                            href={cls.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-[#1a7a8a] hover:underline text-center"
+                          >
+                            <ExternalLink className="h-3 w-3 inline ml-1" />
+                            فتح الرابط مباشرة
+                          </a>
                         </div>
                       </div>
-                      <a
-                        href={cls.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0"
-                      >
-                        <Button
-                          size="sm"
-                          className={`gap-2 ${cls.status === "live" ? "bg-green-600 hover:bg-green-700" : "bg-[#1a7a8a] hover:bg-[#15707e]"}`}
-                        >
-                          {cls.status === "live" ? (
-                            <>
-                              <PlayCircle className="h-4 w-4" />
-                              انضم الآن
-                            </>
-                          ) : (
-                            <>
-                              <Eye className="h-4 w-4" />
-                              عرض
-                            </>
-                          )}
-                        </Button>
-                      </a>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </div>
         )}
@@ -217,53 +264,66 @@ export default function StudentAttendancePage() {
             </Card>
           ) : (
             <div className="space-y-3">
-              {filteredHistory?.map((item: any) => (
-                <Card key={item._id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between flex-wrap gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-[#001f24]">{item.title}</p>
-                          <Badge className="bg-gray-100 text-gray-600">{item.groupName}</Badge>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-4 mt-1 text-xs text-gray-500">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {format(new Date(item.startTime), "dd MMM yyyy", { locale: ar })}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {format(new Date(item.startTime), "HH:mm", { locale: ar })}
-                          </span>
-                          {item.duration && (
-                            <span className="flex items-center gap-1 text-green-600">
-                              <CheckCircle className="h-3 w-3" />
-                              {item.duration} دقيقة
+              {attendanceHistory?.map((item: any) => {
+                // ✅ حساب وقت الانضمام
+                const joinedTime = item.joinedAt ? format(new Date(item.joinedAt), "HH:mm", { locale: ar }) : "—";
+                
+                return (
+                  <Card key={item._id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between flex-wrap gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium text-[#001f24]">{item.title}</p>
+                            <Badge className="bg-gray-100 text-gray-600 text-xs">{item.groupName}</Badge>
+                            {/* ✅ عرض حالة الحضور مع اللون المناسب */}
+                            {getAttendanceStatusBadge(item.attendanceStatus || "pending")}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-4 mt-1 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {format(new Date(item.startTime), "dd MMM yyyy", { locale: ar })}
                             </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {format(new Date(item.startTime), "HH:mm", { locale: ar })}
+                            </span>
+                            {item.duration && (
+                              <span className="flex items-center gap-1 text-green-600">
+                                <ClockIcon className="h-3 w-3" />
+                                {item.duration} دقيقة
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1 text-gray-400">
+                              <PlayCircle className="h-3 w-3" />
+                              انضم في {joinedTime}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {item.recordingLink && (
+                            <a
+                              href={item.recordingLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-purple-600 hover:underline flex items-center gap-1"
+                            >
+                              <Video className="h-4 w-4" />
+                              تسجيل
+                            </a>
+                          )}
+                          {item.attendanceStatus === "pending" && (
+                            <Badge className="bg-amber-100 text-amber-700 animate-pulse">
+                              <Loader2 className="h-3 w-3 animate-spin ml-1" />
+                              في انتظار التأكيد
+                            </Badge>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {item.recordingLink && (
-                          <a
-                            href={item.recordingLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-purple-600 hover:underline flex items-center gap-1"
-                          >
-                            <Video className="h-4 w-4" />
-                            تسجيل
-                          </a>
-                        )}
-                        <Badge className="bg-green-100 text-green-700">
-                          <CheckCircle className="h-3 w-3 ml-1" />
-                          حضرت
-                        </Badge>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>

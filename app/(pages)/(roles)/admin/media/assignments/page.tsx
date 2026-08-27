@@ -21,9 +21,10 @@ export default function CurrentAssignmentsPage() {
   });
   console.log(assignments);
 
-  // جلب بيانات الطلاب والصفوف والفصول
+  // ✅ جلب بيانات الطلاب والمجموعات والصفوف
   const students = useQuery(api.user.students.getStudents, {});
-  const classes = useQuery(api.classes.classes.getClasses, {});
+  const groups = useQuery(api.groups.groups.getGroups, {});
+  const grades = useQuery(api.grades.grades.getActiveGrades, {});
 
   const deleteAssignment = useMutation(api.media.mediaassignments.deleteMediaAssignment);
   const publishAssignment = useMutation(api.media.mediaassignments.publishMediaAssignment);
@@ -31,18 +32,21 @@ export default function CurrentAssignmentsPage() {
   const isLoading = assignments === undefined;
   const allRows   = assignments ?? [];
 
-  // بناء خريطة الأسماء
+  // ✅ بناء خريطة الأسماء (students + groups + grades)
   useEffect(() => {
-    if (students && classes && assignments) {
+    if (students && groups && grades && assignments) {
       const nameMap: Record<string, string> = {};
       
       assignments.forEach((assignment: any) => {
         if (assignment.assignTo === "student") {
           const student = students.find((s: any) => s._id === assignment.targetId);
           nameMap[assignment._id] = student?.name || "طالب غير محدد";
-        } else if (assignment.assignTo === "class" || assignment.assignTo === "section") {
-          const classData = classes.find((c: any) => c._id === assignment.targetId);
-          nameMap[assignment._id] = classData?.classNameAr || "فصل غير محدد";
+        } else if (assignment.assignTo === "group") {
+          const group = groups.find((g: any) => g._id === assignment.targetId);
+          nameMap[assignment._id] = group?.name || "مجموعة غير محددة";
+        } else if (assignment.assignTo === "grade") {
+          const grade = grades.find((g: any) => g._id === assignment.targetId);
+          nameMap[assignment._id] = grade?.name || "صف غير محدد";
         } else {
           nameMap[assignment._id] = assignment.targetId || "—";
         }
@@ -50,7 +54,7 @@ export default function CurrentAssignmentsPage() {
       
       setTargetNames(nameMap);
     }
-  }, [students, classes, assignments]);
+  }, [students, groups, grades, assignments]);
 
   const totalPages = Math.max(1, Math.ceil(allRows.length / pageSize));
   const paginated  = allRows.slice((page - 1) * pageSize, page * pageSize);
@@ -87,9 +91,10 @@ export default function CurrentAssignmentsPage() {
       video: "فيديو",
       youtube: "يوتيوب",
       pdf: "PDF",
-      class: "صف",
+      link: "رابط",
       student: "طالب",
-      section: "فصل",
+      group: "مجموعة",
+      grade: "صف",
     };
     return (
       <span className="bg-blue-100 text-blue-700 text-xs font-medium px-3 py-1 rounded-full">
@@ -100,16 +105,16 @@ export default function CurrentAssignmentsPage() {
 
   const getTargetLabel = (assignTo: string, assignmentId: string) => {
     const name = targetNames[assignmentId];
-    if (assignTo === "class") return name || "صف غير محدد";
     if (assignTo === "student") return name || "طالب غير محدد";
-    if (assignTo === "section") return name || "فصل غير محدد";
+    if (assignTo === "group") return name || "مجموعة غير محددة";
+    if (assignTo === "grade") return name || "صف غير محدد";
     return "—";
   };
 
   const getTargetTypeLabel = (assignTo: string) => {
-    if (assignTo === "class") return "صف";
     if (assignTo === "student") return "طالب";
-    if (assignTo === "section") return "فصل";
+    if (assignTo === "group") return "مجموعة";
+    if (assignTo === "grade") return "صف";
     return assignTo;
   };
 
@@ -208,7 +213,7 @@ export default function CurrentAssignmentsPage() {
                           <p className="font-medium text-[#001f24]">{row.title}</p>
                         </td>
 
-                        {/* Assigned to - ✅ استخدام الاسم من targetNames */}
+                        {/* Assigned to */}
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-2">
                             <Users className="h-3.5 w-3.5 text-gray-400" />

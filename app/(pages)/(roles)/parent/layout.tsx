@@ -15,8 +15,8 @@ const navigation = [
   { name: "أبنائي", href: "/parent/children", icon: Users },
   { name: "المعاملات", href: "/parent/transactions", icon: CreditCard },
   { name: "ChatBox", href: "/parent/chatbox", icon: BellCheck },
+  { name: "الإشعارات", href: "/parent/notifications", icon: Bell },
 
-//   { name: "الإشعارات", href: "/parent/notifications", icon: Bell },
 //   { name: "الإعدادات", href: "/parent/settings", icon: Settings },
 ];
 

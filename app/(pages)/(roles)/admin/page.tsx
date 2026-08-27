@@ -31,12 +31,14 @@ import {
   MoreVertical,
   ChevronRight,
   FolderOpen,
+  Package,
 } from "lucide-react";
-import { PiStudentBold } from "react-icons/pi";
+import { PiStudentBold, PiTreasureChestFill } from "react-icons/pi";
 import { FaChalkboardTeacher, FaHandshake } from "react-icons/fa";
 import { LuBaggageClaim } from "react-icons/lu";
 import { IoMdTrendingUp } from "react-icons/io";
 import { SiGoogleclassroom } from "react-icons/si";
+import { IoChatbubbleOutline } from "react-icons/io5";
 
 // بيانات النشاط الأخير
 const recentActivities = [
@@ -82,17 +84,17 @@ export default function AdminDashboard() {
   const quickActionsGrid = [
     { title: "المعلمون", icon: FaChalkboardTeacher, href: "/admin/teachers", color: "emerald" },
     { title: "إضافة طالب", icon: PiStudentBold, href: "/admin/students", color: "teal" },
-    { title: "اولياء الامور", icon: Users, href: "/admin/roles", color: "purple" },
-    { title: "مكتبة المحتوى", icon: Library, href: "/admin/content", color: "blue" },
+    { title: "اولياء الامور", icon: Users, href: "/admin/parents", color: "cyan" },
+    { title: "خطط الصفوف", icon: BookOpen, href: "/admin/grades", color: "indigo" },
+    { title: "معرض الوسائط", icon: Library, href: "/admin/media", color: "purple" },
     { title: "بنك الأسئلة", icon: FileQuestion, href: "/admin/questions", color: "amber" },
-    { title: "تسجيل دفعة", icon: UserPlus, href: "/admin/batch", color: "green" },
-    { title: "إنشاء امتحان", icon: GraduationCap, href: "/admin/exams", color: "red" },
-    { title: "المستخدمون", icon: Users, href: "/admin/users", color: "slate" },
-    { title: "خطط الدروس", icon: BookOpen, href: "/admin/plans", color: "indigo" },
+    { title: "انشاء واجب", icon: UserPlus, href: "/admin/assignments", color: "red" },
+    { title: "إنشاء امتحان", icon: GraduationCap, href: "/admin/exams", color: "blue" },
+    { title: "البورتفوليو", icon: FolderOpen, href: "/admin/landing", color: "violet" },
+    { title: "chatBox", icon: IoChatbubbleOutline, href: "/admin/chatbox", color: "green" },
     { title: "الإشعارات", icon: Bell, href: "/admin/notifications", color: "pink" },
-    { title: "الإعدادات", icon: Settings, href: "/admin/settings", color: "gray" },
-    { title: "معرض الوسائط", icon: Library, href: "/admin/media", color: "cyan" },
-    { title: "البورتفوليو", icon: FolderOpen, href: "/admin/portfolio", color: "violet" },
+    { title: "المستودعات", icon: Package, href: "/admin/inventory", color: "slate" },
+    { title: "الخزينة", icon: PiTreasureChestFill, href: "/admin/treasury", color: "gray" },
   ];
   const colorMap: Record<string, { bg: string, iconBg: string, from: string, to: string }> = {
     blue: { bg: "bg-blue-50", iconBg: "bg-blue-600", from: "from-blue-50", to: "to-blue-100/50" },
@@ -126,14 +128,14 @@ export default function AdminDashboard() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="relative">
+          {/* <div className="relative">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
               placeholder="بحث..."
               className="pr-9 pl-4 py-2 text-sm bg-white/10 backdrop-blur border border-white/20 rounded-xl w-56 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-white/30"
             />
-          </div>
+          </div> */}
           <button className="relative p-2 hover:bg-white/10 rounded-xl transition-all">
             <Bell className="h-5 w-5 text-white/80" />
             {pendingCount > 0 && (
@@ -230,7 +232,7 @@ export default function AdminDashboard() {
         {/* القسم السفلي - 3 أعمدة */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* النشاط الأخير */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+          {/* <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-semibold text-[#001f24]">النشاط الأخير</h3>
@@ -254,10 +256,10 @@ export default function AdminDashboard() {
                 </div>
               ))}
             </div>
-          </div>
+          </div> */}
 
           {/* الأحداث القادمة */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+          {/* <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <Calendar className="h-5 w-5 text-[#1a7a8a]" />
               <h3 className="text-lg font-semibold text-[#001f24]">الأحداث القادمة</h3>
@@ -274,21 +276,21 @@ export default function AdminDashboard() {
                 </div>
               ))}
 
-              {/* إضافة حدث جديد */}
+              
               <button className="w-full p-3 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-400 hover:text-[#1a7a8a] hover:border-[#1a7a8a]/30 transition-all">
                 + إضافة حدث جديد
               </button>
             </div>
-          </div>
+          </div> */}
 
           {/* أفضل الدورات */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-2 mb-4">
+          {/* <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm"> */}
+            {/* <div className="flex items-center gap-2 mb-4">
               <Award className="h-5 w-5 text-[#1a7a8a]" />
               <h3 className="text-lg font-semibold text-[#001f24]">أفضل الدورات</h3>
-            </div>
-            <div className="space-y-4 max-h-80 overflow-y-auto">
-              {topCourses.map((course, idx) => (
+            </div> */}
+            {/* <div className="space-y-4 max-h-80 overflow-y-auto"> */}
+              {/* {topCourses.map((course, idx) => (
                 <div key={idx} className="group p-3 rounded-xl hover:bg-gray-50 transition-all">
                   <div className="flex justify-between text-sm mb-1">
                     <span className="font-medium text-gray-900 group-hover:text-[#1a7a8a] transition-colors">{course.name}</span>
@@ -305,18 +307,18 @@ export default function AdminDashboard() {
                     <span>{course.progress >= 70 ? '🚀 ممتاز' : course.progress >= 50 ? '📈 جيد' : '📚 قيد التقدم'}</span>
                   </div>
                 </div>
-              ))}
+              ))} */}
 
               {/* عرض جميع الدورات */}
-              <Link
+              {/* <Link
                 href="/admin/courses"
                 className="flex items-center justify-center gap-2 w-full p-2 text-sm text-[#1a7a8a] hover:bg-[#1a7a8a]/5 rounded-lg transition-all"
               >
                 عرض جميع الدورات
                 <ChevronRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </div>
+              </Link> */}
+            {/* </div> */}
+          {/* </div> */}
         </div>
 
         {/* التذييل */}

@@ -39,6 +39,9 @@ import {
 
 import { Input } from "@/components/ui/input";
 import { IoChatbubbleOutline } from "react-icons/io5";
+import { IoIosCheckmarkCircleOutline } from "react-icons/io";
+import { HiAcademicCap } from "react-icons/hi";
+import { TbLivePhoto } from "react-icons/tb";
 
 export default function TeacherLayout({
   children,
@@ -79,10 +82,10 @@ export default function TeacherLayout({
     { label: "مجموعاتي", icon: FolderOpen, href: "/teacher/groups" },
     { label: "الامتحانات", icon: ClipboardList, href: "/teacher/exams" },
     { label: "الواجبات", icon: FileText, href: "/teacher/assignments" },
-    { label: "القدرات", icon: School, href: "/teacher/aptitude" },
-    { label: "التحصيلي", icon: School, href: "/teacher/academic" },
+    { label: "القدرات", icon: IoIosCheckmarkCircleOutline, href: "/teacher/aptitude" },
+    { label: "التحصيلي", icon: HiAcademicCap, href: "/teacher/academic" },
 
-    { label: "المحاضرات المباشرة", icon: GraduationCap, href: "/teacher/live-classes" },
+    { label: "المحاضرات المباشرة", icon: TbLivePhoto, href: "/teacher/live-classes" },
     { label: " Chatbox", icon: IoChatbubbleOutline, href: "/teacher/chatbox" },
   ];
 

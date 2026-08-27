@@ -25,6 +25,7 @@ import {
   School,
   Home,
   CreditCard,
+  Library,
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { SiGoogleclassroom, SiWikibooks } from "react-icons/si";
@@ -36,6 +37,7 @@ import { IoIosCheckmarkCircleOutline } from "react-icons/io";
 import { AiOutlineTransaction } from "react-icons/ai";
 import { FaClipboardQuestion } from "react-icons/fa6";
 import { HiAcademicCap } from "react-icons/hi";
+import { TbLivePhoto } from "react-icons/tb";
 
 export default function StudentLayout({
   children,
@@ -78,8 +80,8 @@ export default function StudentLayout({
     { label: "مجموعاتي", icon: SiGoogleclassroom, href: "/student/groups" },
     { label: "واجبائي", icon: FileText, href: "/student/my-assignments" },
     { label: "امتحاناتي", icon: PiExam, href: "/student/my-exams" },
-    { label: "وسائطي", icon: FaClipboardQuestion, href: "/student/my-media" },
-    // { label: "حضوري", icon: Circle, href: "/student/attendance" },
+    { label: "وسائطي", icon: Library, href: "/student/my-media" },
+    { label: "حصص الاونلاين و الحضور", icon: TbLivePhoto , href: "/student/attendance" },
     { label: "Chatbox", icon: IoChatbubbleOutline, href: "/student/chatbox" },
     { label: "المشتريات", icon: FaStore, href: "/student/purchases" },
     { label: "القدرات", icon: IoIosCheckmarkCircleOutline, href: "/aptitude" },

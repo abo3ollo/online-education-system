@@ -53,6 +53,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
+import { toast } from "sonner";
 
 // أيقونات المنصات
 const PlatformIcon = ({ platform }: { platform: string }) => {
@@ -106,6 +107,8 @@ export default function LiveClassDetailsPage() {
     api.liveClasses.liveClasses.getLiveClassAttendance,
     liveClassId ? { liveClassId: liveClassId as any } : "skip"
   );
+
+  const confirmAttendance = useMutation(api.liveClasses.liveClasses.confirmStudentAttendance);
 
   // ✅ جلب المستخدم الحالي
   const currentUser = useQuery(api.user.auth.getCurrentUser);
@@ -214,6 +217,20 @@ export default function LiveClassDetailsPage() {
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
   };
+
+  // ✅ دالة تأكيد حضور الطالب
+const handleConfirmAttendance = async (studentId: string, status: "approved" | "rejected") => {
+  try {
+    await confirmAttendance({
+      liveClassId: liveClassId as any,
+      studentId: studentId as any,
+      status: status,
+    });
+    toast.success(status === "approved" ? "✅ تم تأكيد حضور الطالب" : "❌ تم رفض حضور الطالب");
+  } catch (error: any) {
+    toast.error(error.message || "حدث خطأ أثناء تأكيد الحضور");
+  }
+};
 
   // ✅ حساب مدة الحصة
   const duration = Math.round((liveClass.endTime - liveClass.startTime) / 60000);
@@ -385,7 +402,7 @@ export default function LiveClassDetailsPage() {
                     <p>لم يسجل أي طالب حضوره بعد</p>
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                  <div className="space-y-2 max-h-60 overflow-y-auto">    
                     {attendance?.map((att: any) => (
                       <div
                         key={att.studentId}
@@ -407,24 +424,38 @@ export default function LiveClassDetailsPage() {
                                   <span className="text-green-600">{att.duration} دقيقة</span>
                                 </>
                               )}
-                              {att.leftAt && (
-                                <>
-                                  {" • "}
-                                  <span className="text-gray-400">
-                                    حتى {format(new Date(att.leftAt), "HH:mm", { locale: ar })}
-                                  </span>
-                                </>
-                              )}
                             </p>
                           </div>
                         </div>
-                        {att.duration && att.duration > 0 ? (
-                          <Badge className="bg-green-100 text-green-700">
-                            {att.duration} دقيقة
+                        <div className="flex items-center gap-2">
+                          {/* ✅ عرض حالة التأكيد */}
+                          <Badge className={att.statusColor}>
+                            {att.statusLabel}
                           </Badge>
-                        ) : (
-                          <Badge className="bg-blue-100 text-blue-700">حاضر</Badge>
-                        )}
+
+                          {/* ✅ أزرار التأكيد (تظهر فقط إذا كانت الحصة منتهية و الحالة pending) */}
+                          {liveClass.status === "ended" && att.status === "pending" && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                                onClick={() => handleConfirmAttendance(att.studentId, "approved")}
+                              >
+                                <CheckCircle className="h-3 w-3 ml-1" />
+                                تأكيد
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-600 border-red-200 hover:bg-red-50"
+                                onClick={() => handleConfirmAttendance(att.studentId, "rejected")}
+                              >
+                                <XCircle className="h-3 w-3 ml-1" />
+                                رفض
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -485,16 +516,16 @@ export default function LiveClassDetailsPage() {
                     </Button>
                   )}
 
-                  {(isScheduled || isEnded) && (
-                    <Button
-                      onClick={handleDelete}
-                      variant="outline"
-                      className="w-full text-red-600 border-red-200 hover:bg-red-50 gap-2"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      حذف الحصة
-                    </Button>
-                  )}
+                  {/* {(isScheduled || isEnded) && (
+                    // <Button
+                    //   onClick={handleDelete}
+                    //   variant="outline"
+                    //   className="w-full text-red-600 border-red-200 hover:bg-red-50 gap-2"
+                    // >
+                    //   <Trash2 className="h-4 w-4" />
+                    //   حذف الحصة
+                    // </Button>
+                  )} */}
 
                   {isLive && (
                     <a

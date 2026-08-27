@@ -25,6 +25,7 @@ import {
   FileArchive,
   MoreVertical,
   Play,
+  Link2,
 } from "lucide-react";
 import Link from "next/link";
 import { BsYoutube } from "react-icons/bs";
@@ -55,9 +56,7 @@ function getYouTubeVideoId(url: string): string | null {
     /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
     /(?:youtu\.be\/)([a-zA-Z0-9_-]{11})/,
     /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-    /(?:youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
   ];
-  
   for (const pattern of patterns) {
     const match = url.match(pattern);
     if (match) return match[1];
@@ -99,6 +98,7 @@ function FileIcon({ file, className }: { file: any; className?: string }) {
   if (file.type === "video") return <Video className={`${cls} text-purple-400`} />;
   if (file.type === "pdf") return <FileText className={`${cls} text-red-400`} />;
   if (file.type === "audio") return <Music className={`${cls} text-green-400`} />;
+  if (file.type === "link") return <Link2 className={`${cls} text-gray-400`} />;
   return <File className={`${cls} text-gray-400`} />;
 }
 
@@ -135,7 +135,7 @@ function FileModal({
 
   const rows = [
     { label: "اسم الملف", value: file.name },
-    { label: "النوع", value: file.type === "youtube" ? "يوتيوب" : file.type === "image" ? "صورة" : file.type === "video" ? "فيديو" : file.type },
+    { label: "النوع", value: file.type === "youtube" ? "يوتيوب" : file.type === "image" ? "صورة" : file.type === "video" ? "فيديو" : file.type === "link" ? "رابط" : file.type },
     { label: "الحجم", value: formatBytes(file.size) },
     { label: "السياق", value: file.context ?? "عام" },
     { label: "تاريخ الرفع", value: formatDate(file.uploadedAt) },
@@ -183,13 +183,6 @@ function FileModal({
               <div className="bg-[#f7fafa] border border-[#c0c8c9] rounded-lg px-3 py-2 text-xs text-gray-500 font-mono truncate">
                 {file.url}
               </div>
-            </div>
-
-            <div className="flex items-center justify-between py-3">
-              <span className="text-sm font-semibold text-[#001f24]">حالة الملف</span>
-              <span className="inline-flex items-center gap-1.5 bg-green-100 text-green-700 text-xs font-medium px-3 py-1 rounded-full">
-                <Check className="h-3 w-3" /> نشط
-              </span>
             </div>
 
             <div className="py-3">
@@ -353,6 +346,129 @@ function YoutubeModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ─── Add Link Modal ──────────────────────────────────────────────
+function AddLinkModal({ onClose }: { onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [type, setType] = useState<"image" | "video" | "pdf" | "link">("link");
+  const [loading, setLoading] = useState(false);
+  const createFile = useMutation(api.media.mediafiles.createMediaFileFromUrl);
+
+  const handleAdd = async () => {
+    if (!name.trim()) {
+      alert("يرجى إدخال عنوان الملف");
+      return;
+    }
+    if (!url.trim()) {
+      alert("يرجى إدخال الرابط");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await createFile({
+        name: name.trim(),
+        url: url.trim(),
+        type: type,
+        context: "general",
+      });
+      onClose();
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.message || "حدث خطأ أثناء إضافة الملف");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const typeOptions = [
+    { value: "link", label: "🔗 رابط عام", desc: "أي رابط" },
+    { value: "image", label: "🖼️ صورة", desc: "صورة" },
+    { value: "video", label: "🎬 فيديو", desc: "فيديو" },
+    { value: "pdf", label: "📄 PDF", desc: "ملف PDF" },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6"
+        onClick={(e) => e.stopPropagation()}
+        dir="rtl"
+      >
+        <div className="flex items-center justify-between mb-5">
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+            <X className="h-5 w-5 text-gray-400" />
+          </button>
+          <h2 className="text-lg font-bold text-[#001f24]">➕ إضافة ملف برابط</h2>
+        </div>
+
+        <label className="block text-sm font-medium text-gray-700 mb-2">نوع الملف</label>
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {typeOptions.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setType(opt.value as any)}
+              className={`p-2 rounded-lg border-2 text-sm transition-all text-right ${
+                type === opt.value
+                  ? "border-[#1a7a8a] bg-[#e0f5f7] text-[#1a7a8a]"
+                  : "border-gray-200 hover:border-gray-300 text-gray-600"
+              }`}
+            >
+              <div className="font-medium">{opt.label}</div>
+              <div className="text-xs text-gray-400">{opt.desc}</div>
+            </button>
+          ))}
+        </div>
+
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          اسم الملف <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          placeholder="مثال: شرح الدرس الأول"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full border border-[#c0c8c9] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a7a8a] focus:border-transparent mb-4"
+        />
+
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          رابط الملف <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="url"
+          placeholder="https://drive.google.com/file/d/..."
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          className="w-full border border-[#c0c8c9] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a7a8a] focus:border-transparent"
+        />
+        <p className="text-xs text-gray-400 mt-1">
+          ⚠️ تأكد من أن الرابط عام (Anyone with the link can view)
+        </p>
+
+        <div className="flex gap-3 mt-5 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            إلغاء
+          </button>
+          <button
+            onClick={handleAdd}
+            disabled={loading || !name.trim() || !url.trim()}
+            className="flex items-center gap-2 px-5 py-2 text-sm font-semibold bg-[#001f24] hover:bg-[#03363d] text-white rounded-xl transition-colors disabled:opacity-50"
+          >
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            إضافة
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────
 export default function MediaDashboard() {
   const [search, setSearch] = useState("");
@@ -360,7 +476,7 @@ export default function MediaDashboard() {
   const [contextFilter, setContextFilter] = useState("all");
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [showYoutube, setShowYoutube] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [showAddLink, setShowAddLink] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const files = useQuery(api.media.mediafiles.listMediaFiles, {
@@ -370,7 +486,6 @@ export default function MediaDashboard() {
   });
 
   const deleteFile = useMutation(api.media.mediafiles.deleteMediaFile);
-  const createFile = useMutation(api.media.mediafiles.createMediaFile);
 
   const isLoading = files === undefined;
   const filtered = files ?? [];
@@ -379,69 +494,16 @@ export default function MediaDashboard() {
     total: filtered.length,
     images: filtered.filter((f) => f.type === "image").length,
     videos: filtered.filter((f) => f.type === "video" || f.type === "youtube").length,
-    others: filtered.filter((f) => f.type !== "image" && f.type !== "video" && f.type !== "youtube").length,
-  };
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files;
-    if (!selected || selected.length === 0) return;
-
-    setUploading(true);
-    try {
-      for (const file of Array.from(selected)) {
-        const res = await fetch("/api/r2/upload-url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filename: file.name, contentType: file.type }),
-        });
-        if (!res.ok) throw new Error("Failed to get upload URL");
-        const { signedUrl, publicUrl, key } = await res.json();
-
-        await fetch(signedUrl, {
-          method: "PUT",
-          headers: { "Content-Type": file.type },
-          body: file,
-        });
-
-        const type = file.type.startsWith("image/") ? "image"
-          : file.type.startsWith("video/") ? "video"
-            : file.type === "application/pdf" ? "pdf"
-              : "audio";
-
-        await createFile({
-          name: file.name,
-          type: type as any,
-          url: publicUrl,
-          r2Key: key,
-          size: file.size,
-          context: "general",
-          mimeType: file.type,
-        });
-      }
-    } catch (err) {
-      console.error("Upload error:", err);
-      alert("حدث خطأ أثناء رفع الملف");
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
+    links: filtered.filter((f) => f.type === "link").length,
+    others: filtered.filter((f) => f.type !== "image" && f.type !== "video" && f.type !== "youtube" && f.type !== "link").length,
   };
 
   const handleDelete = async (fileId: Id<"mediaFiles">) => {
-    const result = await deleteFile({ fileId });
-    if (result?.r2Key) {
-      await fetch("/api/r2/delete", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: result.r2Key }),
-      });
-    }
+    await deleteFile({ fileId });
   };
 
-  // Helper to safely get thumbnail
   const getSafeThumbnail = (url: string): string | null => {
-    const thumbnail = getYouTubeThumbnail(url);
-    return thumbnail;
+    return getYouTubeThumbnail(url);
   };
 
   return (
@@ -453,32 +515,24 @@ export default function MediaDashboard() {
             <h1 className="text-2xl font-bold text-white flex items-center gap-2">
               <FolderOpen className="h-5 w-5" /> معرض الوسائط
             </h1>
-            <p className="text-[#a3ced6] text-sm mt-0.5">إدارة الملفات والوسائط</p>
+            <p className="text-[#a3ced6] text-sm mt-0.5">إدارة الملفات والروابط</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <button className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors border border-white/20">
+            {/* <button className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors border border-white/20">
               <Trash2 className="h-4 w-4" /> تنظيف غير المستخدم
-            </button>
+            </button> */}
             <button
               onClick={() => setShowYoutube(true)}
               className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors border border-white/20"
             >
               <BsYoutube className="h-4 w-4" /> إضافة يوتيوب
             </button>
-            <label className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors border border-white/20 cursor-pointer">
-              {uploading
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <Upload className="h-4 w-4" />
-              }
-              رفع ملف
-              <input
-                type="file"
-                className="hidden"
-                multiple
-                disabled={uploading}
-                onChange={handleUpload}
-              />
-            </label>
+            <button
+              onClick={() => setShowAddLink(true)}
+              className="flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors border border-white/20"
+            >
+              <Link2 className="h-4 w-4" /> إضافة رابط
+            </button>
           </div>
         </div>
       </div>
@@ -507,8 +561,8 @@ export default function MediaDashboard() {
           <div className="bg-white rounded-xl p-4 border border-[#c0c8c9]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-[#001f24]">{stats.videos}</p>
-                <p className="text-xs text-gray-500">فيديو / يوتيوب</p>
+                <p className="text-2xl font-bold text-[#001f24]">{stats.videos + stats.links}</p>
+                <p className="text-xs text-gray-500">فيديو / روابط</p>
               </div>
               <Video className="h-8 w-8 text-purple-400" />
             </div>
@@ -538,7 +592,7 @@ export default function MediaDashboard() {
               />
             </div>
 
-            <select
+            {/* <select
               value={contextFilter}
               onChange={(e) => setContextFilter(e.target.value)}
               className="border border-gray-200 rounded-lg px-4 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#1a7a8a] bg-white"
@@ -546,7 +600,7 @@ export default function MediaDashboard() {
               <option value="all">جميع السياقات</option>
               <option value="general">عام</option>
               <option value="classroom">الفصل الدراسي</option>
-            </select>
+            </select> */}
 
             <select
               value={typeFilter}
@@ -558,6 +612,7 @@ export default function MediaDashboard() {
               <option value="video">فيديو</option>
               <option value="youtube">يوتيوب</option>
               <option value="pdf">PDF</option>
+              <option value="link">رابط</option>
             </select>
 
             <button className="flex items-center gap-2 bg-[#001f24] hover:bg-[#03363d] text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors">
@@ -603,6 +658,22 @@ export default function MediaDashboard() {
           <div className="text-center py-16 text-gray-400 bg-white rounded-xl border border-[#c0c8c9]">
             <File className="h-12 w-12 mx-auto mb-3 text-gray-300" />
             <p>لا توجد ملفات تطابق البحث</p>
+            <div className="flex justify-center gap-3 mt-4">
+              <button
+                onClick={() => setShowAddLink(true)}
+                className="bg-[#001f24] hover:bg-[#03363d] text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+              >
+                <Link2 className="h-4 w-4 inline ml-2" />
+                إضافة رابط
+              </button>
+              <button
+                onClick={() => setShowYoutube(true)}
+                className="bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+              >
+                <BsYoutube className="h-4 w-4 inline ml-2" />
+                إضافة يوتيوب
+              </button>
+            </div>
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -649,7 +720,7 @@ export default function MediaDashboard() {
                       {file.name}
                     </p>
                     <p className="text-xs text-gray-400 text-center mt-0.5">
-                      {file.type === "youtube" ? "يوتيوب" : formatBytes(file.size)}
+                      {file.type === "youtube" ? "يوتيوب" : file.type === "link" ? "رابط" : formatBytes(file.size)}
                     </p>
                   </div>
                 </div>
@@ -697,11 +768,14 @@ export default function MediaDashboard() {
                               {file.type === "youtube" && (
                                 <p className="text-xs text-red-500">يوتيوب</p>
                               )}
+                              {file.type === "link" && (
+                                <p className="text-xs text-blue-500">رابط</p>
+                              )}
                             </div>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500">
-                          {file.type === "image" ? "صورة" : file.type === "youtube" ? "يوتيوب" : file.type === "video" ? "فيديو" : file.type}
+                          {file.type === "image" ? "صورة" : file.type === "youtube" ? "يوتيوب" : file.type === "video" ? "فيديو" : file.type === "link" ? "رابط" : file.type}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500">{formatBytes(file.size)}</td>
                         <td className="px-4 py-3 text-sm text-gray-500">{formatDate(file.uploadedAt)}</td>
@@ -729,6 +803,7 @@ export default function MediaDashboard() {
         />
       )}
       {showYoutube && <YoutubeModal onClose={() => setShowYoutube(false)} />}
+      {showAddLink && <AddLinkModal onClose={() => setShowAddLink(false)} />}
     </div>
   );
 }

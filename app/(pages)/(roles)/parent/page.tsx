@@ -24,6 +24,11 @@ import {
   XCircle,
   Wallet,
   Receipt,
+  Video,
+  UserCheck,
+  UserX,
+  TrendingUp,
+  BarChart3,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -33,6 +38,11 @@ import Link from "next/link";
 function formatDate(ts?: number) {
   if (!ts) return "—";
   return format(new Date(ts), "dd MMM yyyy", { locale: ar });
+}
+
+function formatTime(ts?: number) {
+  if (!ts) return "—";
+  return format(new Date(ts), "HH:mm", { locale: ar });
 }
 
 const statusLabels: Record<string, { label: string; cls: string; icon: any }> =
@@ -57,6 +67,27 @@ const statusLabels: Record<string, { label: string; cls: string; icon: any }> =
   },
 };
 
+const attendanceStatusMap: Record<
+  string,
+  { label: string; cls: string; icon: any }
+> = {
+  pending: {
+    label: "قيد المراجعة",
+    cls: "bg-amber-100 text-amber-700",
+    icon: Clock,
+  },
+  approved: {
+    label: "✅ حضر",
+    cls: "bg-green-100 text-green-700",
+    icon: CheckCircle,
+  },
+  rejected: {
+    label: "❌ لم يحضر",
+    cls: "bg-red-100 text-red-600",
+    icon: XCircle,
+  },
+};
+
 const typeIcons: Record<string, string> = {
   platform: "💻",
   aptitude: "🎯",
@@ -77,7 +108,7 @@ export default function ParentDashboard() {
   const [selectedStudentId, setSelectedStudentId] =
     useState<Id<"users"> | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "children" | "grades" | "groups" | "payments"
+    "children" | "grades" | "groups" | "payments" | "attendance"
   >("children");
 
   // ── Queries ───────────────────────────────────────────────────
@@ -93,11 +124,16 @@ export default function ParentDashboard() {
     api.user.parents.getStudentGrades,
     selectedStudentId ? { studentId: selectedStudentId } : "skip",
   );
-  console.log(grades);
 
   const groups = useQuery(
     api.groups.groups.getStudentGroups,
     selectedStudentId ? { studentId: selectedStudentId } : "skip",
+  );
+
+  // ✅ جلب سجل حضور الأبناء
+  const childrenAttendance = useQuery(
+    api.liveClasses.liveClasses.getChildrenAttendance,
+    currentUser?._id ? { parentId: currentUser._id as Id<"users"> } : "skip",
   );
 
   // ── Loading / auth guard ──────────────────────────────────────
@@ -142,6 +178,19 @@ export default function ParentDashboard() {
     (c: any) => c?._id === selectedStudentId,
   );
 
+  // ✅ حساب إحصائيات الحضور
+  const attendanceStats = {
+    total: childrenAttendance?.length || 0,
+    approved:
+      childrenAttendance?.filter((a: any) => a.status === "approved").length ||
+      0,
+    pending:
+      childrenAttendance?.filter((a: any) => a.status === "pending").length || 0,
+    rejected:
+      childrenAttendance?.filter((a: any) => a.status === "rejected").length ||
+      0,
+  };
+
   const getSubscriptionStatus = (transactions: any[]) => {
     if (!transactions || transactions.length === 0) return "inactive";
     const sorted = [...transactions].sort(
@@ -176,7 +225,7 @@ export default function ParentDashboard() {
 
   const handleSelectStudent = (
     id: Id<"users">,
-    tab: "grades" | "groups" | "payments" = "grades",
+    tab: "grades" | "groups" | "payments" | "attendance" = "grades",
   ) => {
     setSelectedStudentId(id);
     setActiveTab(tab);
@@ -187,6 +236,7 @@ export default function ParentDashboard() {
     { key: "grades" as const, label: "الدرجات", icon: Award },
     { key: "groups" as const, label: "المجموعات", icon: FolderOpen },
     { key: "payments" as const, label: "المدفوعات", icon: CreditCard },
+    { key: "attendance" as const, label: "الحضور", icon: Video },
   ];
 
   return (
@@ -300,10 +350,11 @@ export default function ParentDashboard() {
                       isSelected ? null : (child._id as Id<"users">),
                     )
                   }
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium cursor-pointer border-2 transition-all ${isSelected
-                    ? "bg-teal-600 text-white border-teal-600"
-                    : "bg-white text-gray-700 border-gray-200 hover:border-teal-400"
-                    }`}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium cursor-pointer border-2 transition-all ${
+                    isSelected
+                      ? "bg-teal-600 text-white border-teal-600"
+                      : "bg-white text-gray-700 border-gray-200 hover:border-teal-400"
+                  }`}
                 >
                   <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
                     {child.name?.charAt(0)}
@@ -311,10 +362,11 @@ export default function ParentDashboard() {
                   {child.name}
                   {child.isPrimary && (
                     <span
-                      className={`text-xs px-1.5 py-0.5 rounded-full ${isSelected
-                        ? "bg-white/20 text-white"
-                        : "bg-amber-100 text-amber-700"
-                        }`}
+                      className={`text-xs px-1.5 py-0.5 rounded-full ${
+                        isSelected
+                          ? "bg-white/20 text-white"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
                     >
                       رئيسي
                     </span>
@@ -338,10 +390,11 @@ export default function ParentDashboard() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-2 px-6 py-4 text-sm font-medium cursor-pointer border-b-2 whitespace-nowrap transition-colors ${activeTab === tab.key
-                    ? "border-teal-600 text-teal-600 bg-teal-50/50"
-                    : "border-transparent text-gray-500 hover:text-gray-800"
-                    }`}
+                  className={`flex items-center gap-2 px-6 py-4 text-sm font-medium cursor-pointer border-b-2 whitespace-nowrap transition-colors ${
+                    activeTab === tab.key
+                      ? "border-teal-600 text-teal-600 bg-teal-50/50"
+                      : "border-transparent text-gray-500 hover:text-gray-800"
+                  }`}
                 >
                   <Icon className="h-4 w-4" />
                   {tab.label}
@@ -681,10 +734,11 @@ export default function ParentDashboard() {
                               {group.name}
                             </p>
                             <span
-                              className={`text-xs px-2 py-0.5 rounded-full ${group.status === "active"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-gray-100 text-gray-600"
-                                }`}
+                              className={`text-xs px-2 py-0.5 rounded-full ${
+                                group.status === "active"
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-gray-100 text-gray-600"
+                              }`}
                             >
                               {group.status === "active"
                                 ? "نشطة"
@@ -963,6 +1017,194 @@ export default function ParentDashboard() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ── TAB: الحضور ──────────────────────────────────────── */}
+          {activeTab === "attendance" && (
+            <div className="p-6">
+              {childrenList.length === 0 ? (
+                <div className="text-center py-12">
+                  <Video className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">لا يوجد أبناء مرتبطون بحسابك</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    تواصل مع الإدارة لربط حسابات الأبناء
+                  </p>
+                </div>
+              ) : childrenAttendance === undefined ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+                </div>
+              ) : childrenAttendance.length === 0 ? (
+                <div className="text-center py-12">
+                  <Video className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">لا يوجد سجل حضور</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    لم يحضر أي من أبنائك حصصاً مباشرة بعد
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* ✅ إحصائيات الحضور */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                      <p className="text-xs text-blue-600 font-medium">
+                        إجمالي الحصص
+                      </p>
+                      <p className="text-2xl font-bold text-blue-700 mt-1">
+                        {attendanceStats.total}
+                      </p>
+                    </div>
+                    <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                      <p className="text-xs text-green-600 font-medium">حضر</p>
+                      <p className="text-2xl font-bold text-green-700 mt-1">
+                        {attendanceStats.approved}
+                      </p>
+                      <p className="text-xs text-green-500">
+                        {attendanceStats.total > 0
+                          ? Math.round(
+                              (attendanceStats.approved / attendanceStats.total) *
+                                100,
+                            )
+                          : 0}
+                        %
+                      </p>
+                    </div>
+                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+                      <p className="text-xs text-amber-600 font-medium">
+                        قيد المراجعة
+                      </p>
+                      <p className="text-2xl font-bold text-amber-700 mt-1">
+                        {attendanceStats.pending}
+                      </p>
+                    </div>
+                    <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+                      <p className="text-xs text-red-600 font-medium">
+                        لم يحضر
+                      </p>
+                      <p className="text-2xl font-bold text-red-700 mt-1">
+                        {attendanceStats.rejected}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* ✅ قائمة الحضور حسب الأبناء */}
+                  {childrenList.map((child: any) => {
+                    const childAttendance = childrenAttendance.filter(
+                      (a: any) => a.studentId === child._id,
+                    );
+
+                    if (childAttendance.length === 0) return null;
+
+                    const childStats = {
+                      total: childAttendance.length,
+                      approved: childAttendance.filter(
+                        (a: any) => a.status === "approved",
+                      ).length,
+                      pending: childAttendance.filter(
+                        (a: any) => a.status === "pending",
+                      ).length,
+                      rejected: childAttendance.filter(
+                        (a: any) => a.status === "rejected",
+                      ).length,
+                    };
+
+                    return (
+                      <div key={child._id} className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                            <UserCheck className="h-4 w-4 text-teal-600" />
+                            {child.name}
+                            <span className="text-xs text-gray-400 font-normal">
+                              ({childAttendance.length} حصة)
+                            </span>
+                          </h3>
+                          <div className="flex items-center gap-3 text-xs">
+                            <span className="text-green-600">
+                              ✅ {childStats.approved}
+                            </span>
+                            <span className="text-amber-600">
+                              ⏳ {childStats.pending}
+                            </span>
+                            <span className="text-red-600">
+                              ❌ {childStats.rejected}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          {childAttendance.map((att: any) => {
+                            const statusInfo = attendanceStatusMap[
+                              att.status || "pending"
+                            ] || {
+                              label: "غير محدد",
+                              cls: "bg-gray-100 text-gray-600",
+                              icon: AlertCircle,
+                            };
+                            const StatusIcon = statusInfo.icon;
+
+                            return (
+                              <div
+                                key={att._id}
+                                className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-teal-200 transition-all"
+                              >
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-3">
+                                    <p className="text-sm font-semibold text-gray-900">
+                                      {att.title}
+                                    </p>
+                                    <span
+                                      className={`text-xs px-2 py-0.5 rounded-full ${statusInfo.cls} flex items-center gap-1`}
+                                    >
+                                      <StatusIcon className="h-3 w-3" />
+                                      {statusInfo.label}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-gray-500">
+                                    <span className="flex items-center gap-1">
+                                      <GraduationCap className="h-3 w-3" />
+                                      {att.groupName || "غير محدد"}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <UserCheck className="h-3 w-3" />
+                                      {att.teacherName || "غير محدد"}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="h-3 w-3" />
+                                      {formatDate(att.startTime)}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="h-3 w-3" />
+                                      {formatTime(att.startTime)}
+                                    </span>
+                                    {att.duration && (
+                                      <span className="flex items-center gap-1 text-green-600">
+                                        <CheckCircle className="h-3 w-3" />
+                                        {att.duration} دقيقة
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {att.recordingLink && (
+                                  <a
+                                    href={att.recordingLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-purple-600 hover:underline flex items-center gap-1 shrink-0"
+                                  >
+                                    <Video className="h-4 w-4" />
+                                    تسجيل
+                                  </a>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -422,6 +422,34 @@ export const getStudentSubscriptionStatus = query({
   },
 });
 
+
+// ✅ جلب جميع المستخدمين (للأدمن فقط)
+export const getAllUsers = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("غير مصرح");
+
+    const admin = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!admin || admin.role !== "admin") {
+      throw new Error("مطلوب صلاحيات مشرف");
+    }
+
+    const users = await ctx.db.query("users").collect();
+    return users.map((u) => ({
+      _id: u._id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      status: u.status,
+    }));
+  },
+});
+
 // ✅ تصدير الدوال
 export const auth = {
   createUser,
@@ -432,4 +460,5 @@ export const auth = {
   updateSubscriptionStatus,
   getPendingUsers,
   getStudentSubscriptionStatus,
+  getAllUsers,
 };

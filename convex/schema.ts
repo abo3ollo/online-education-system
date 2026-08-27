@@ -338,6 +338,7 @@ export default defineSchema({
       v.literal("youtube"),
       v.literal("pdf"),
       v.literal("audio"),
+      v.literal("link"), // ✅ أضف هذا
     ),
     url: v.string(), // R2 public URL or YouTube URL
     r2Key: v.optional(v.string()), // R2 object key (for deletion)
@@ -1014,6 +1015,8 @@ landingSettings: defineTable({
       v.literal("student"),
       v.literal("all_teachers"),
       v.literal("teacher"),
+      v.literal("parent"),      // ✅ أضف هذا
+      v.literal("all_users"), 
     ),
     recipientId: v.optional(
       v.union(v.id("users"), v.id("groups"), v.id("grades")),
@@ -1057,13 +1060,20 @@ landingSettings: defineTable({
       v.literal("cancelled"), // ملغاة
     ),
     attendance: v.array(
-      v.object({
-        studentId: v.id("users"),
-        joinedAt: v.number(),
-        leftAt: v.optional(v.number()),
-        duration: v.optional(v.number()), // المدة بالدقائق
-      }),
-    ),
+    v.object({
+      studentId: v.id("users"),
+      joinedAt: v.number(),
+      leftAt: v.optional(v.number()),
+      duration: v.optional(v.number()),
+      status: v.union(
+        v.literal("pending"),    // في انتظار تأكيد المعلم
+        v.literal("approved"),   // تم التأكيد - حضر
+        v.literal("rejected"),   // لم يحضر
+      ),
+      confirmedBy: v.optional(v.id("users")), // المعلم الذي أكد
+      confirmedAt: v.optional(v.number()),
+    })
+  ),
     maxStudents: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),

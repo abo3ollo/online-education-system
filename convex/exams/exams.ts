@@ -841,7 +841,94 @@ export const gradeExamSubmission = mutation({
 
 
 
-// convex/exams/exams.ts
+// ✅ تحديث درجات الأسئلة في الامتحان
+export const updateExamQuestionMarks = mutation({
+  args: {
+    examId: v.id("exams"),
+    questions: v.array(
+      v.object({
+        questionId: v.id("questions"),
+        marks: v.number(),
+        order: v.number(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("غير مصرح");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!user || (user.role !== "admin" && user.role !== "teacher")) {
+      throw new Error("مطلوب صلاحيات مشرف أو معلم");
+    }
+
+    const exam = await ctx.db.get(args.examId);
+    if (!exam) throw new Error("الامتحان غير موجود");
+
+    // ✅ التحقق من أن المعلم هو منشئ الامتحان أو أدمن
+    if (user.role !== "admin" && exam.createdBy !== user._id) {
+      throw new Error("غير مصرح لك بتعديل هذا الامتحان");
+    }
+
+    // ✅ حساب المجموع الجديد
+    const newTotalMarks = args.questions.reduce((sum, q) => sum + q.marks, 0);
+
+    // ✅ تحديث الأسئلة والمجموع الكلي
+    await ctx.db.patch(args.examId, {
+      questions: args.questions,
+      totalMarks: newTotalMarks,
+      updatedAt: Date.now(),
+    });
+
+    // ✅ تحديث درجات جميع التسليمات بناءً على الدرجات الجديدة
+    const submissions = await ctx.db
+      .query("examSubmissions")
+      .withIndex("by_exam", (q) => q.eq("examId", args.examId))
+      .collect();
+
+    for (const sub of submissions) {
+      if (sub.status === "graded") {
+        // ✅ إعادة حساب الدرجة الكلية
+        let newTotal = 0;
+        const updatedAnswers = sub.answers.map((answer: any) => {
+          const question = args.questions.find(
+            (q) => q.questionId === answer.questionId
+          );
+          // ✅ إذا تغيرت درجة السؤال، نضبط الدرجة بنفس النسبة
+          if (question) {
+            const oldMaxMarks = exam.questions.find(
+              (q: any) => q.questionId === answer.questionId
+            )?.marks || 1;
+            const ratio = answer.marksObtained / oldMaxMarks;
+            const newMarks = Math.round(ratio * question.marks);
+            newTotal += newMarks;
+            return {
+              ...answer,
+              marksObtained: newMarks,
+            };
+          }
+          newTotal += answer.marksObtained || 0;
+          return answer;
+        });
+
+        // ✅ تحديث التسليم بالدرجات الجديدة
+        await ctx.db.patch(sub._id, {
+          answers: updatedAnswers,
+          totalMarks: newTotal,
+          updatedAt: Date.now(),
+        });
+      }
+    }
+
+    return { success: true, newTotalMarks };
+  },
+});
+
+
 
 // ✅ جلب تفاصيل الامتحان مع إجابات الطالب - البحث عن الطالب الصحيح
 export const getExamWithStudentAnswers = query({
@@ -940,5 +1027,5 @@ export const exams = {
   publishExam,
   getUpcomingForStudent,
   getTeacherExams,
-  getExamWithStudentAnswers
+  getExamWithStudentAnswers,
 };

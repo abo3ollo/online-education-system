@@ -63,7 +63,7 @@ export const listNotifications = query({
 
         let recipientName = undefined;
         try {
-          if (notif.recipientId && notif.recipientType !== "all_teachers") {
+          if (notif.recipientId && notif.recipientType !== "all_teachers" && notif.recipientType !== "all_users") {
             if (notif.recipientType === "group") {
               const group = await ctx.db.get(notif.recipientId);
               if (group) recipientName = group.name || "مجموعة غير معروفة";
@@ -91,7 +91,7 @@ export const listNotifications = query({
   },
 });
 
-// ✅ جلب الإشعارات للمستخدم الحالي (معدل - مع التحقق الفعلي من المجموعات)
+// ✅ جلب الإشعارات للمستخدم الحالي
 export const getMyNotifications = query({
   args: {
     status: v.optional(v.union(v.literal("sent"), v.literal("read"), v.literal("archived"))),
@@ -112,11 +112,10 @@ export const getMyNotifications = query({
       .query("notifications")
       .collect();
 
-    // ✅ جلب مجموعات المستخدم (إذا كان معلم أو طالب)
+    // ✅ جلب مجموعات المستخدم
     let userGroupIds: Id<"groups">[] = [];
     
     if (user.role === "teacher") {
-      // ✅ جلب المجموعات التي يديرها المعلم
       const allGroups = await ctx.db.query("groups").collect();
       const teacherGroups = allGroups.filter((g) => 
         g.createdBy === user._id || 
@@ -125,7 +124,6 @@ export const getMyNotifications = query({
       );
       userGroupIds = teacherGroups.map((g) => g._id);
     } else if (user.role === "student") {
-      // ✅ جلب المجموعات التي فيها الطالب
       const allGroups = await ctx.db.query("groups").collect();
       const studentGroups = allGroups.filter((g) =>
         g.students && g.students.includes(user._id)
@@ -143,9 +141,8 @@ export const getMyNotifications = query({
         return userGroupIds.some((id) => id === n.recipientId);
       }
       
-      // 3. إذا كان المستلم صف (سيتم التحقق لاحقاً)
+      // 3. إذا كان المستلم صف
       if (n.recipientType === "grade" && n.recipientId) {
-        // يمكن إضافة منطق التحقق من الصف هنا
         return true;
       }
       
@@ -154,8 +151,18 @@ export const getMyNotifications = query({
         return true;
       }
       
-      // 5. إذا كان المستلم معلم والمستخدم هو هذا المعلم
+      // 5. إذا كان المستلم جميع المستخدمين
+      if (n.recipientType === "all_users") {
+        return true;
+      }
+      
+      // 6. إذا كان المستلم معلم والمستخدم هو هذا المعلم
       if (n.recipientType === "teacher" && n.recipientId === user._id) {
+        return true;
+      }
+      
+      // 7. إذا كان المستلم ولي أمر والمستخدم هو هذا ولي الأمر
+      if (n.recipientType === "parent" && n.recipientId === user._id) {
         return true;
       }
       
@@ -173,7 +180,7 @@ export const getMyNotifications = query({
   },
 });
 
-// ✅ جلب عدد الإشعارات غير المقروءة (معدل)
+// ✅ جلب عدد الإشعارات غير المقروءة
 export const getUnreadCount = query({
   args: {},
   handler: async (ctx) => {
@@ -213,21 +220,25 @@ export const getUnreadCount = query({
     const unread = notifications.filter((n) => {
       if (n.status !== "sent") return false;
       
-      // المستلم هو المستخدم مباشرة
       if (n.recipientId === user._id) return true;
       
-      // المستلم مجموعة والمستخدم في المجموعة
       if (n.recipientType === "group" && n.recipientId) {
         return userGroupIds.some((id) => id === n.recipientId);
       }
       
-      // جميع المعلمين والمستخدم معلم
       if (n.recipientType === "all_teachers" && user.role === "teacher") {
         return true;
       }
       
-      // معلم معين والمستخدم هو المعلم
+      if (n.recipientType === "all_users") {
+        return true;
+      }
+      
       if (n.recipientType === "teacher" && n.recipientId === user._id) {
+        return true;
+      }
+      
+      if (n.recipientType === "parent" && n.recipientId === user._id) {
         return true;
       }
       
@@ -242,7 +253,7 @@ export const getUnreadCount = query({
 // MUTATIONS
 // ============================================
 
-// ✅ إنشاء إشعار جديد (معدل)
+// ✅ إنشاء إشعار جديد (معدل - يدعم جميع الأنواع)
 export const createNotification = mutation({
   args: {
     title: v.string(),
@@ -265,7 +276,9 @@ export const createNotification = mutation({
       v.literal("grade"),
       v.literal("student"),
       v.literal("all_teachers"),
-      v.literal("teacher")
+      v.literal("teacher"),
+      v.literal("parent"),
+      v.literal("all_users")
     ),
     recipientId: v.optional(v.union(v.id("users"), v.id("groups"), v.id("grades"))),
   },
@@ -292,7 +305,7 @@ export const createNotification = mutation({
       } else if (args.recipientType === "grade") {
         const grade = await ctx.db.get(args.recipientId);
         if (!grade) throw new Error("الصف غير موجود");
-      } else {
+      } else if (args.recipientType !== "all_teachers" && args.recipientType !== "all_users") {
         const recipient = await ctx.db.get(args.recipientId);
         if (!recipient) throw new Error("المستلم غير موجود");
       }
@@ -330,7 +343,8 @@ export const createNotification = mutation({
   },
 });
 
-// ✅ تحديث حالة الإشعار
+
+// ✅ تحديث حالة الإشعار 
 export const updateNotificationStatus = mutation({
   args: {
     notificationId: v.id("notifications"),
@@ -354,7 +368,16 @@ export const updateNotificationStatus = mutation({
     const notification = await ctx.db.get(args.notificationId);
     if (!notification) throw new Error("الإشعار غير موجود");
 
-    if (notification.createdBy !== user._id && user.role !== "admin") {
+    // ✅ التحقق من أن المستخدم هو المستلم أو المنشئ أو أدمن
+    const isRecipient = notification.recipientId === user._id;
+    const isCreator = notification.createdBy === user._id;
+    const isAdmin = user.role === "admin";
+
+    // ✅ إذا كان الإشعار لجميع المستخدمين أو جميع المعلمين، نسمح لأي مستخدم بتحديثه
+    const isAllUsers = notification.recipientType === "all_users";
+    const isAllTeachers = notification.recipientType === "all_teachers";
+
+    if (!isRecipient && !isCreator && !isAdmin && !isAllUsers && !isAllTeachers) {
       throw new Error("غير مصرح لك بتحديث هذا الإشعار");
     }
 
