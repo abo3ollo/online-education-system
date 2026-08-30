@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { LuClock5 } from "react-icons/lu";
 import { HiOutlineUserGroup } from "react-icons/hi";
 import Image from "next/image";
+import { FaCircleUser } from "react-icons/fa6";
 
 
 // ─── Icon Mapping ────────────────────────────────────────────────
@@ -77,95 +78,100 @@ export default function LandingPage() {
     isSignedIn ? {} : "skip"
   );
 
-  useEffect(() => {
-    // لو مش مسجل دخول
-    if (!isSignedIn) {
-      setIsRedirecting(false);
-      return;
-    }
+  const handleSignInClick = () => {
+    // ✅ نضع علامة قبل فتح المودال
+    sessionStorage.setItem("clerk_signed_in", "true");
+  };
 
-    // لو currentUser لسه بتحمّل
-    if (currentUser === undefined) {
-      return;
-    }
+  // useEffect(() => {
+  // لو مش مسجل دخول
+  // if (!isSignedIn) {
+  //   setIsRedirecting(false);
+  //   return;
+  // }
 
-    // لو currentUser = null
-    if (currentUser === null) {
-      setIsRedirecting(true);
-      router.replace("/onboarding");
-      return;
-    }
+  // لو currentUser لسه بتحمّل
+  // if (currentUser === undefined) {
+  //   return;
+  // }
 
-    // ✅ لو مسجل دخول و currentUser موجود → توجيه فوري
-    const role = currentUser.role;
-    const status = currentUser.status;
-    const tracks = (currentUser as any).tracks || [];
-    const email = currentUser.email;
+  // لو currentUser = null
+  // if (currentUser === null) {
+  //   setIsRedirecting(true);
+  //   router.replace("/onboarding");
+  //   return;
+  // }
 
-    const ADMIN_WHITELIST = [
-      "admin123@gmail.com",
-      "admin@marineacademy.com",
-      "your-email@gmail.com",
-      "digitallandsystems2025@gmail.com",
-      "abdalrahmanyehia333@gmail.com",
-    ];
+  // ✅ لو مسجل دخول و currentUser موجود → توجيه فوري
+  // const role = currentUser.role;
+  // const status = currentUser.status;
+  // const tracks = (currentUser as any).tracks || [];
+  // const email = currentUser.email;
 
-    // ✅ لو أدمن
-    if (role === "admin" && ADMIN_WHITELIST.includes(email?.toLowerCase())) {
-      setIsRedirecting(true);
-      window.location.href = "/admin"; // ✅ أسرع من router
-      return;
-    }
+  // const ADMIN_WHITELIST = [
+  //   "admin123@gmail.com",
+  //   "admin@marineacademy.com",
+  //   "your-email@gmail.com",
+  //   "digitallandsystems2025@gmail.com",
+  //   "abdalrahmanyehia333@gmail.com",
+  // ];
 
-    // ✅ لو pending
-    if (status === "pending") {
-      setIsRedirecting(true);
-      window.location.href = "/pending-approval";
-      return;
-    }
+  // ✅ لو أدمن
+  // if (role === "admin" && ADMIN_WHITELIST.includes(email?.toLowerCase())) {
+  //   setIsRedirecting(true);
+  //   window.location.href = "/admin"; // ✅ أسرع من router
+  //   return;
+  // }
 
-    // ✅ لو rejected
-    if (status === "rejected") {
-      setIsRedirecting(true);
-      window.location.href = "/account-rejected";
-      return;
-    }
+  // ✅ لو pending
+  // if (status === "pending") {
+  //   setIsRedirecting(true);
+  //   window.location.href = "/pending-approval";
+  //   return;
+  // }
 
-    // ✅ لو active أو approved
-    if (status === "active" || status === "approved") {
-      setIsRedirecting(true);
+  // ✅ لو rejected
+  // if (status === "rejected") {
+  //   setIsRedirecting(true);
+  //   window.location.href = "/account-rejected";
+  //   return;
+  // }
 
-      if (tracks.includes("platform")) {
-        const routes: Record<string, string> = {
-          student: "/student",
-          teacher: "/teacher",
-          parent: "/parent",
-          admin: "/admin",
-        };
-        const dashboardPath = routes[role];
-        if (dashboardPath) {
-          window.location.href = dashboardPath;
-          return;
-        }
-      }
+  // ✅ لو active أو approved
+  //   if (status === "active" || status === "approved") {
+  //     setIsRedirecting(true);
 
-      if (tracks.includes("aptitude")) {
-        window.location.href = "/aptitude";
-        return;
-      }
+  //     if (tracks.includes("platform")) {
+  //       const routes: Record<string, string> = {
+  //         student: "/student",
+  //         teacher: "/teacher",
+  //         parent: "/parent",
+  //         admin: "/admin",
+  //       };
+  //       const dashboardPath = routes[role];
+  //       if (dashboardPath) {
+  //         window.location.href = dashboardPath;
+  //         return;
+  //       }
+  //     }
 
-      if (tracks.includes("academic")) {
-        window.location.href = "/academic";
-        return;
-      }
+  //     if (tracks.includes("aptitude")) {
+  //       window.location.href = "/aptitude";
+  //       return;
+  //     }
 
-      if (tracks.length === 0) {
-        window.location.href = "/onboarding";
-        return;
-      }
-    }
+  //     if (tracks.includes("academic")) {
+  //       window.location.href = "/academic";
+  //       return;
+  //     }
 
-  }, [isSignedIn, currentUser]);
+  //     if (tracks.length === 0) {
+  //       window.location.href = "/onboarding";
+  //       return;
+  //     }
+  //   }
+
+  // }, [isSignedIn, currentUser]);
 
   // قائمة المواد
   const subjects = {
@@ -194,8 +200,8 @@ export default function LandingPage() {
   // ✅ حالة التحميل
   if (settings === undefined || sections === undefined || courses === undefined || testimonials === undefined || videoTestimonials === undefined || announcements === undefined || subscriptions === undefined) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white">
-        <Loader2 className="h-8 w-8 animate-spin text-[#1a7a8a]" />
+      <div className="flex items-center justify-center min-h-screen bg-[#f9f9ff]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#003178]" />
       </div>
     );
   }
@@ -203,9 +209,9 @@ export default function LandingPage() {
   // ✅ لو مسجل دخول وبينتظر التوجيه
   if (isSignedIn && isRedirecting) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <Loader2 className="h-8 w-8 animate-spin text-[#1a7a8a]" />
-        <span className="mr-3 text-gray-500">جاري التوجيه...</span>
+      <div className="min-h-screen flex items-center justify-center bg-[#f9f9ff]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#003178]" />
+        <span className="mr-3 text-[#434652]">جاري التوجيه...</span>
       </div>
     );
   }
@@ -313,14 +319,14 @@ export default function LandingPage() {
       const hasSteps = section.steps && section.steps.length > 0;
 
       return (
-        <section key={section._id} className="py-20 bg-white" >
+        <section key={section._id} className="py-20 bg-[#f9f9ff]" >
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-14">
-              <h2 className="text-3xl font-bold text-[#0a2540] mb-3">
+              <h2 className="text-3xl font-bold text-[#111c2d] mb-3">
                 {lang === "ar" ? section.titleAr || section.title : section.title}
               </h2>
               {section.subtitle && (
-                <p className="text-gray-500 max-w-xl mx-auto">
+                <p className="text-[#434652] max-w-xl mx-auto">
                   {lang === "ar" ? section.subtitleAr || section.subtitle : section.subtitle}
                 </p>
               )}
@@ -332,14 +338,14 @@ export default function LandingPage() {
                 {section.cards.map((card: any, idx: number) => {
                   const Icon = getIcon(card.icon);
                   return (
-                    <div key={idx} className="border border-gray-100 rounded-2xl p-8 hover:border-[#1a7a8a]/30 hover:shadow-md transition-all group">
-                      <div className="w-14 h-14 bg-[#e0f5f7] rounded-2xl flex items-center justify-center mb-5 group-hover:bg-[#1a7a8a]/10 transition-colors">
-                        <Icon className="w-7 h-7 text-[#1a6774]" />
+                    <div key={idx} className="bg-[#f9f9ff] border border-[#c3c6d4] rounded-2xl p-8 hover:border-[#003178]/30 hover:shadow-md transition-all group">
+                      <div className="w-14 h-14 bg-[#e7eeff] rounded-2xl flex items-center justify-center mb-5 group-hover:bg-[#003178]/10 transition-colors">
+                        <Icon className="w-7 h-7 text-[#003178]" />
                       </div>
-                      <h3 className="text-lg font-bold text-[#0a2540] mb-3">
+                      <h3 className="text-lg font-bold text-[#111c2d] mb-3">
                         {lang === "ar" ? card.titleAr || card.title : card.title}
                       </h3>
-                      <p className="text-gray-500 text-sm leading-relaxed">
+                      <p className="text-[#434652] text-sm leading-relaxed">
                         {lang === "ar" ? card.descAr || card.desc : card.desc}
                       </p>
                     </div>
@@ -355,14 +361,14 @@ export default function LandingPage() {
                   const Icon = getIcon(feature.icon);
                   return (
                     <div key={idx} className="flex gap-4 items-start">
-                      <div className="w-10 h-10 bg-[#e0f5f7] rounded-xl flex items-center justify-center shrink-0 mt-0.5">
-                        <Icon className="h-5 w-5 text-[#1a7a8a]" />
+                      <div className="w-10 h-10 bg-[#e7eeff] rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                        <Icon className="h-5 w-5 text-[#003178]" />
                       </div>
                       <div>
-                        <p className="font-semibold text-[#0a2540] mb-1">
+                        <p className="font-semibold text-[#111c2d] mb-1">
                           {lang === "ar" ? feature.titleAr || feature.title : feature.title}
                         </p>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-[#434652]">
                           {lang === "ar" ? feature.descAr || feature.desc : feature.desc}
                         </p>
                       </div>
@@ -376,14 +382,14 @@ export default function LandingPage() {
             {hasSteps && (
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {section.steps.map((step: any, idx: number) => (
-                  <div key={idx} className="bg-white/5 border border-white/10 rounded-2xl p-6 text-center hover:bg-white/10 transition-colors">
-                    <div className="w-12 h-12 bg-[#1a7a8a] rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <div key={idx} className="bg-[#111c2d]/5 border border-[#111c2d]/10 rounded-2xl p-6 text-center hover:bg-[#111c2d]/10 transition-colors">
+                    <div className="w-12 h-12 bg-[#003178] rounded-xl flex items-center justify-center mx-auto mb-4">
                       <span className="text-white font-bold text-lg">{step.number}</span>
                     </div>
-                    <h3 className="text-white font-bold mb-2">
+                    <h3 className="text-[#111c2d] font-bold mb-2">
                       {lang === "ar" ? step.titleAr || step.title : step.title}
                     </h3>
-                    <p className="text-[#8eafc4] text-sm leading-relaxed">
+                    <p className="text-[#434652] text-sm leading-relaxed">
                       {lang === "ar" ? step.descAr || step.desc : step.desc}
                     </p>
                   </div>
@@ -404,18 +410,18 @@ export default function LandingPage() {
     const currentAnnouncement = announcements[currentAnnouncementIndex];
 
     return (
-      <section className="py-20 bg-linear-to-r from-[#001f24] to-[#03363d]">
+      <section className="py-20 bg-[#111c2d]">
         <div className="max-w-7xl mx-auto px-6">
-          {/* Section header with editorial feel */}
+          {/* Section header */}
           <div className="flex items-center justify-between mb-10">
             <div className="flex items-center gap-4">
-              <div className="w-1 h-8 bg-[#1a7a8a] rounded-full"></div>
+              <div className="w-1 h-8 bg-[#003178] rounded-full"></div>
               <div>
-                <h2 className="text-2xl font-bold text-white tracking-tight">
+                <h2 className="text-5xl font-bold text-white tracking-tight">
                   {lang === "ar" ? "أحدث الإعلانات" : "Latest Announcements"}
                 </h2>
                 <p className="text-sm text-[#a3ced6]">
-                  {lang === "ar" ? "آخر المستجدات والأخبار" : "News and updates"}
+                  {lang === "ar" ? "أهم المستجدات والأخبار" : "News and updates"}
                 </p>
               </div>
             </div>
@@ -429,98 +435,80 @@ export default function LandingPage() {
                     onClick={() => setCurrentAnnouncementIndex((prev) =>
                       prev === 0 ? announcements.length - 1 : prev - 1
                     )}
-                    className="p-2 rounded-lg border border-white/20 hover:border-[#1a7a8a] hover:bg-[#1a7a8a]/20 transition-all duration-200 group"
+                    className="p-2 rounded-2xl border border-white/20 hover:border-[#003178] hover:bg-[#003178]/20 transition-all duration-200 group"
                     aria-label="Previous announcement"
                   >
-                    <ChevronRight className="h-4 w-4 text-[#a3ced6] group-hover:text-[#1a7a8a]" />
+                    <ChevronRight className="h-4 w-4 text-[#a3ced6] group-hover:text-[#003178]" />
                   </button>
                   <button
                     onClick={() => setCurrentAnnouncementIndex((prev) =>
                       (prev + 1) % announcements.length
                     )}
-                    className="p-2 rounded-lg border border-white/20 hover:border-[#1a7a8a] hover:bg-[#1a7a8a]/20 transition-all duration-200 group"
+                    className="p-2 rounded-2xl border border-white/20 hover:border-[#003178] hover:bg-[#003178]/20 transition-all duration-200 group"
                     aria-label="Next announcement"
                   >
-                    <ChevronLeft className="h-4 w-4 text-[#a3ced6] group-hover:text-[#1a7a8a]" />
+                    <ChevronLeft className="h-4 w-4 text-[#a3ced6] group-hover:text-[#003178]" />
                   </button>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Feature card - editorial style */}
-          <div className="group relative bg-white/10 backdrop-blur-md rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 border border-white/10">
+          {/* Announcement Card - Image on Right (smaller) */}
+          <div className="group relative bg-white/5 backdrop-blur-md rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 border border-white/10">
             <div className="grid lg:grid-cols-5 gap-0">
-              {/* Image - takes 2/5 of space */}
-              <div className="lg:col-span-2 relative min-h-75 lg:min-h-100 overflow-hidden">
-                <img
-                  src={currentAnnouncement.imageUrl || "/images/announcement-placeholder.jpg"}
-                  alt={currentAnnouncement.title}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = "/images/announcement-placeholder.jpg";
-                  }}
-                />
-                {/* linear overlay for text readability on mobile */}
-                <div className="absolute inset-0 bg-linear-to-t from-black/40 via-transparent to-transparent lg:hidden"></div>
-
+              {/* Content - Takes 3/5 (left) */}
+              <div className="lg:col-span-2 p-8 lg:p-12 flex flex-col justify-center order-2 lg:order-1">
                 {/* Badge */}
-                <div className="absolute top-4 left-4 bg-[#1a7a8a] text-white text-xs font-medium px-3 py-1.5 rounded-full tracking-wide flex items-center gap-1.5 shadow-lg">
+                <span className="bg-[#003178] text-white text-xs font-semibold px-4 py-1.5 rounded-full inline-flex items-center gap-1.5 w-fit mb-5">
                   <Megaphone className="h-3 w-3" />
-                  {lang === "ar" ? "إعلان" : "Announcement"}
-                </div>
+                  {lang === "ar" ? "إعلان جديد" : "New Announcement"}
+                </span>
 
-                {/* Counter badge on image - mobile only */}
-                {announcements.length > 1 && (
-                  <div className="absolute bottom-4 right-4 lg:hidden bg-black/60 backdrop-blur text-white text-xs px-3 py-1 rounded-full">
-                    {currentAnnouncementIndex + 1} / {announcements.length}
-                  </div>
-                )}
-              </div>
-
-              {/* Content - takes 3/5 of space */}
-              <div className="lg:col-span-3 p-8 lg:p-10 flex flex-col justify-center">
-                {/* Title */}
-                <h3 className="text-2xl lg:text-3xl font-bold text-white mb-3 leading-tight">
+                {/* Title - London */}
+                <h3 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-white mb-2 leading-tight">
                   {lang === "ar" ? currentAnnouncement.titleAr || currentAnnouncement.title : currentAnnouncement.title}
                 </h3>
 
                 {/* Description */}
-                <p className="text-[#a3ced6] text-base lg:text-lg leading-relaxed mb-5">
+                <p className="text-[#a3ced6] text-lg lg:text-xl leading-relaxed mb-6">
                   {lang === "ar" ? currentAnnouncement.descriptionAr || currentAnnouncement.description : currentAnnouncement.description}
                 </p>
 
-                {/* Points with elegant bullets */}
+                {/* Points with dashes */}
                 {currentAnnouncement.points && currentAnnouncement.points.length > 0 && (
-                  <div className="space-y-2.5">
+                  <div className="space-y-2.5 mb-8">
                     {(lang === "ar" ? currentAnnouncement.pointsAr : currentAnnouncement.points).map((point: string, idx: number) => (
                       <div key={idx} className="flex items-start gap-3 text-[#a3ced6]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#1a7a8a] mt-2 shrink-0"></span>
-                        <span className="text-sm lg:text-base">{point}</span>
+                        <span className="text-[#003178] text-lg font-bold leading-none">-</span>
+                        <span className="text-base lg:text-lg">{point}</span>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Buttons - Learn More & View Trips */}
-                <div className="flex flex-wrap items-center gap-4 mt-6">
-                  {/* ✅ زر "اعرف أكثر" - يذهب إلى صفحة تفاصيل الإعلان (إذا وجدت) */}
-                  <Link href={`/announcements/${currentAnnouncement._id}`}>
-                    <button className="text-[#1a7a8a] font-medium text-sm hover:text-[#a3ced6] transition-colors inline-flex items-center gap-1 group/link">
-                      {lang === "ar" ? "اعرف أكثر" : "Learn more"}
-                      <ChevronLeft className="h-4 w-4 transition-transform group-hover/link:translate-x-1" />
-                    </button>
-                  </Link>
+                {/* Button - Explore Trip */}
+                <Link href="/trips">
+                  <button className="bg-[#003178] hover:bg-[#002a5f] text-white font-semibold px-8 py-3.5 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105 inline-flex items-center gap-2 w-fit">
+                    <span className="text-base">
+                      {lang === "ar" ? "استكشف الرحلة" : "Explore Trip"}
+                    </span>
+                    <ArrowRight className="h-5 w-5" />
+                  </button>
+                </Link>
+              </div>
 
-                  {/* ✅ زر "استكشف الرحلات" - يذهب إلى صفحة الرحلات */}
-                  <Link href="/trips">
-                    <button className="bg-[#1a7a8a] hover:bg-[#15707e] text-white font-semibold px-6 py-2.5 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105 inline-flex items-center gap-2">
-                      <span className="text-sm">
-                        {lang === "ar" ? "استكشف الرحلات" : "Explore Trips"}
-                      </span>
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  </Link>
+              {/* Image - Takes 3/5 (right) - No border, just rounded image */}
+              <div className="lg:col-span-3 relative flex items-start justify-start p-6 order-1 lg:order-2">
+                <div className="relative w-[90%] ms-auto flex justify-start  aspect-4/3 rounded-3xl overflow-hidden shadow-xl">
+                  <img
+                    src={currentAnnouncement.imageUrl || "/images/announcement-placeholder.jpg"}
+                    alt={currentAnnouncement.title}
+                    className="w-full h-full object-cover p-6 rounded-3xl border-rounded"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "/images/announcement-placeholder.jpg";
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -534,7 +522,7 @@ export default function LandingPage() {
                   key={idx}
                   onClick={() => setCurrentAnnouncementIndex(idx)}
                   className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentAnnouncementIndex
-                    ? 'w-8 bg-[#1a7a8a]'
+                    ? 'w-8 bg-[#003178]'
                     : 'w-4 bg-white/20 hover:bg-white/40'
                     }`}
                   aria-label={`Go to announcement ${idx + 1}`}
@@ -552,15 +540,15 @@ export default function LandingPage() {
     if (!videoTestimonials || videoTestimonials.length === 0) return null;
 
     return (
-      <section className="py-20 bg-linear-to-r from-[#001f24] to-[#03363d]">
+      <section className="py-20 bg-[#111c2d]">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-14">
             <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="w-1 h-8 bg-[#1a7a8a] rounded-full"></div>
+              <div className="w-1 h-8 bg-[#003178] rounded-full"></div>
               <h2 className="text-3xl font-bold text-white">
                 {lang === "ar" ? "لا تسمع منا... اسمع من طلابنا" : "Don't just take our word for it... hear from our students."}
               </h2>
-              <div className="w-1 h-8 bg-[#1a7a8a] rounded-full"></div>
+              <div className="w-1 h-8 bg-[#003178] rounded-full"></div>
             </div>
             <p className="text-[#a3ced6]">
               {lang === "ar" ? "شاهد تجارب طلابنا مع المدرسين الخصوصيين" : "Watch our students' experiences with private tutors"}
@@ -593,7 +581,7 @@ export default function LandingPage() {
               return (
                 <div
                   key={video._id}
-                  className="group relative rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-gray-800 border border-white/10 hover:border-[#1a7a8a]/50"
+                  className="group relative rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-gray-800 border border-white/10 hover:border-[#003178]/50"
                   style={{ aspectRatio: '4/5' }}
                   onClick={() => openVideo(embedUrl, video.embedType)}
                 >
@@ -609,7 +597,7 @@ export default function LandingPage() {
                       if (currentIndex < thumbnailSources.length - 1) {
                         img.src = thumbnailSources[currentIndex + 1];
                       } else {
-                        img.src = 'https://via.placeholder.com/400x500/0a2540/ffffff?text=فيديو';
+                        img.src = 'https://via.placeholder.com/400x500/111c2d/ffffff?text=فيديو';
                       }
                     }}
                     loading="lazy"
@@ -626,7 +614,7 @@ export default function LandingPage() {
 
                   <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
                     <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/90 hover:bg-white shadow-lg flex items-center justify-center transition-all duration-300 group-hover:scale-110">
-                      <Play className="w-8 h-8 md:w-10 md:h-10 text-[#0a2540] ml-1" fill="currentColor" />
+                      <Play className="w-8 h-8 md:w-10 md:h-10 text-[#111c2d] ml-1" fill="currentColor" />
                     </div>
                   </div>
 
@@ -654,10 +642,10 @@ export default function LandingPage() {
     );
 
     return (
-      <section className="py-20 bg-[#f7fafa]">
+      <section className="py-20 bg-[#f9f9ff]">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-[#0a2540] mb-3">
+            <h2 className="text-3xl md:text-4xl font-bold text-[#111c2d] mb-3">
               {lang === "ar" ? "أسعار باقات الإشتراك" : "Subscription Packages"}
             </h2>
             <div className="flex justify-center gap-4 mt-4">
@@ -666,8 +654,8 @@ export default function LandingPage() {
                   key={grade}
                   onClick={() => setSelectedGrade(grade as any)}
                   className={`px-6 py-2 rounded-full transition-all duration-300 ${selectedGrade === grade
-                    ? "bg-[#1a7a8a] text-white"
-                    : "bg-white text-[#0a2540] border border-gray-200 hover:border-[#1a7a8a]"
+                    ? "bg-[#003178] text-white"
+                    : "bg-white text-[#111c2d] border border-[#c3c6d4] hover:border-[#003178]"
                     }`}
                 >
                   {lang === "ar"
@@ -688,40 +676,34 @@ export default function LandingPage() {
             {filtered.map((sub: any) => {
               const isPopular = sub.isPopular;
               return (
-                <Card key={sub._id} className={`relative overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-xl ${isPopular ? "border-2 border-[#1a7a8a] shadow-lg" : "border border-gray-100"
-                  }`}>
+                <Card key={sub._id} className={`relative overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-xl ${isPopular ? "border-2 border-[#003178] shadow-lg" : "border border-[#c3c6d4]"}`}>
                   {isPopular && (
-                    <div className="absolute top-0 right-0 bg-[#1a7a8a] text-white text-xs font-bold px-4 py-1 rounded-bl-lg">
+                    <div className="absolute top-0 right-0 bg-[#003178] text-white text-xs font-bold px-4 py-1 rounded-bl-lg">
                       {lang === "ar" ? "الأكثر طلباً" : "Popular"}
                     </div>
                   )}
                   <CardContent className="p-6 text-center">
-                    <h3 className="text-xl font-bold text-[#0a2540]">
+                    <h3 className="text-xl font-bold text-[#111c2d]">
                       {lang === "ar" ? sub.titleAr || sub.title : sub.title}
                     </h3>
-                    <p className="text-sm text-gray-500 mt-2">
+                    <p className="text-sm text-[#434652] mt-2">
                       {lang === "ar" ? sub.descriptionAr || sub.description : sub.description}
                     </p>
                     <div className="mt-4">
-                      <span className="text-4xl font-bold text-[#1a7a8a]">{sub.price}</span>
-                      <span className="text-sm text-gray-500 mr-1">EGP</span>
+                      <span className="text-4xl font-bold text-[#003178]">{sub.price}</span>
+                      <span className="text-sm text-[#434652] mr-1">EGP</span>
                     </div>
-                    <p className="text-sm text-gray-400 mt-1">
+                    <p className="text-sm text-[#434652] mt-1">
                       {sub.sessionsCount} {lang === "ar" ? "حصة" : "Sessions"}
                     </p>
                     <ul className="mt-4 space-y-2 text-right">
                       {(lang === "ar" ? sub.featuresAr : sub.features).map((feature: string, idx: number) => (
-                        <li key={idx} className="text-sm text-gray-600 flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-[#1a7a8a]" />
+                        <li key={idx} className="text-sm text-[#434652] flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-[#003178]" />
                           {feature}
                         </li>
                       ))}
                     </ul>
-                    {/* <Link href={isSignedIn ? "/subscriptions" : "/sign-in"}>
-                      <Button className="w-full mt-6 bg-[#0a2540] hover:bg-[#1a3a5c] text-white">
-                        {lang === "ar" ? "اشترك الآن" : "Subscribe Now"}
-                      </Button>
-                    </Link> */}
                   </CardContent>
                 </Card>
               );
@@ -742,56 +724,57 @@ export default function LandingPage() {
     return (match && match[2].length === 11) ? match[2] : "";
   }
 
-  // عرض الدورات
   const renderCourses = () => {
     // ✅ استخدام data.showCourses
     if (!data.showCourses || !courses || courses.length === 0) return null;
 
     return (
-      <section className="py-20 bg-[#f7fafa]">
+      <section className="py-20 bg-[#f9f9ff]">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold text-[#0a2540] mb-3">
+            <h2 className="text-3xl font-bold text-[#111c2d] mb-3">
               {lang === "ar" ? "دوراتنا المميزة" : "Featured Courses"}
             </h2>
-            <p className="text-gray-500 max-w-xl mx-auto">
+            <p className="text-[#434652] max-w-xl mx-auto">
               {lang === "ar" ? "اختر من بين أفضل الدورات التعليمية" : "Choose from our best educational courses"}
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {courses.slice(0, 3).map((course: any) => (
-              <div key={course._id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                <div className="w-full h-48 bg-[#0a2540] overflow-hidden">
+              <div key={course._id} className="bg-[#f9f9ff] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-[#c3c6d4]">
+                <div className="w-full h-48 bg-[#111c2d] overflow-hidden">
                   <img
                     src={course.imageUrl || "/images/course-placeholder.jpg"}
                     alt={course.title}
-                    className="w-full h-full object-contain transition-transform duration-300 hover:scale-105"
+                    className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = "/images/course-placeholder.jpg";
                     }}
                   />
                 </div>
                 <div className="p-6">
-                  <h3 className="text-lg font-bold text-[#0a2540] mb-2">
+                  <h3 className="text-lg font-bold text-[#111c2d] mb-2">
                     {lang === "ar" ? course.titleAr || course.title : course.title}
                   </h3>
-                  <p className="text-sm text-gray-500 mb-3">
+                  <p className="text-sm text-[#434652] mb-3">
                     {lang === "ar" ? course.summaryAr || course.summary : course.summary}
                   </p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600">👨‍🏫 {course.instructor}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <FaStar className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-sm font-medium">{course.rating}</span>
+
+                  {/* خط فاصل قبل اسم المعلم */}
+                  <div className="border-t border-[#c3c6d4] pt-4 mt-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FaCircleUser className="h-4 w-4 text-[#434652]" />
+                        <span className="text-sm font-medium text-[#111c2d]">
+                          {course.instructor}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <FaStar className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="text-sm font-medium text-[#111c2d]">{course.rating}</span>
+                      </div>
                     </div>
                   </div>
-                  {/* <Link href={course.ctaUrl || "#"}>
-                    <button className="w-full mt-4 bg-[#001f24] hover:bg-[#03363d] text-white font-semibold py-2 rounded-lg transition-colors">
-                      {lang === "ar" ? course.ctaTextAr || "سجل الآن" : course.ctaText || "Enroll Now"}
-                    </button>
-                  </Link> */}
                 </div>
               </div>
             ))}
@@ -807,38 +790,43 @@ export default function LandingPage() {
     if (!data.showTestimonials || !testimonials || testimonials.length === 0) return null;
 
     return (
-      <section className="py-20 bg-linear-to-r bg-white ">
+      <section className="py-20 bg-[#f9f9ff]">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold text-[#0a2540] mb-3">
+            <h2 className="text-3xl font-bold text-[#111c2d] mb-3">
               {lang === "ar" ? "ماذا يقولون عنّا؟" : "What Do They Say About Us?"}
             </h2>
-            <p className="text-gray-500">
+            <p className="text-[#434652]">
               {lang === "ar" ? "قصص نجاح طلابنا وأولياء أمورهم" : "Success stories from our students and parents"}
             </p>
           </div>
           <div className="grid md:grid-cols-2 gap-6">
             {testimonials.slice(0, 4).map((item: any) => (
-              <div key={item._id} className="border border-gray-300 rounded-2xl p-8 hover:border-[#1a7a8a]/30 hover:shadow-md transition-all">
-                <div className="flex gap-1 mb-4">
-                  {Array.from({ length: item.rating || 5 }).map((_, i) => (
-                    <FaStar key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  ))}
+              <div key={item._id} className="bg-[#f9f9ff] border border-[#c3c6d4] rounded-2xl p-8 hover:border-[#003178]/30 hover:shadow-md transition-all">
+                {/* Stars - Centered */}
+                <div className="flex justify-center mb-4">
+                  <div className="flex gap-1">
+                    {Array.from({ length: item.rating || 5 }).map((_, i) => (
+                      <FaStar key={i} className="h-5 w-5 fill-yellow-500 text-yellow-500" />
+                    ))}
+                  </div>
                 </div>
-                <p className="text-gray-600 leading-relaxed mb-6">
-                  {lang === "ar" ? item.textAr || item.text : item.text}
+
+                {/* Testimonial Text - Centered */}
+                <p className="text-[#111c2d] text-center text-lg leading-relaxed mb-6 font-medium">
+                  "{lang === "ar" ? item.textAr || item.text : item.text}"
                 </p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#e0f5f7] flex items-center justify-center">
-                    <span className="text-[#1a7a8a] font-bold text-sm">
+                <div className="flex items-center justify-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#e7eeff] flex items-center justify-center">
+                    <span className="text-[#003178] font-bold text-sm">
                       {item.name.charAt(0)}
                     </span>
                   </div>
                   <div>
-                    <p className="font-semibold text-[#0a2540] text-sm">
+                    <p className="font-semibold text-[#111c2d] text-sm">
                       {lang === "ar" ? item.nameAr || item.name : item.name}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-[#434652]">
                       {lang === "ar" ? item.roleAr || item.role : item.role}
                     </p>
                   </div>
@@ -863,39 +851,14 @@ export default function LandingPage() {
   };
 
   return (
-    <div dir={t.dir} className="font-sans bg-white text-gray-900 overflow-x-hidden">
+    <div dir={t.dir} className="font-sans bg-[#f9f9ff] text-[#111c2d] overflow-x-hidden">
 
       {/* ── NAV ─────────────────────────────────────────────────── */}
-      <nav className="fixed top-0 inset-x-0 z-50 p-3 bg-white/90 backdrop-blur border-b border-gray-100">
+      <nav className="fixed top-0 inset-x-0 z-50 p-3 bg-[#f9f9ff]/90 backdrop-blur border-b border-[#c3c6d4]">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           {/* ✅ Logo + Title */}
           <Link href="/" className="flex items-center gap-3 shrink-0">
-            {/* <img
-              src="/images/logo.jpg"
-              alt="Logo"
-              className="h-12 w-12 object-contain rounded-full"
-              onLoad={(e) => {
-                // ✅ عند تحميل الصورة بنجاح
-                console.log('Logo loaded successfully');
-              }}
-              onError={(e) => {
-                // ✅ عند فشل التحميل، استخدم أيقونة افتراضية
-                const img = e.currentTarget;
-                img.style.display = 'none';
-                const parent = img.parentElement;
-                if (parent) {
-                  const icon = document.createElement('div');
-                  icon.className = 'w-10 h-10 bg-[#e0f5f7] rounded-xl flex items-center justify-center';
-                  icon.innerHTML = `
-          <svg class="h-6 w-6 text-[#1a7a8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-          </svg>
-        `;
-                  parent.appendChild(icon);
-                }
-              }}
-            /> */}
-            <span className="text-4xl font-semibold text-[#0a2540]">
+            <span className="text-4xl font-semibold text-[#003178]">
               {lang === "ar" ? data.schoolNameAr || "أكاديمية إتقان" : data.schoolName || "Test Academy"}
             </span>
           </Link>
@@ -903,33 +866,39 @@ export default function LandingPage() {
           <div className="hidden lg:flex items-center gap-3">
             <button
               onClick={toggleLang}
-              className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-[#0a2540] border border-gray-200 rounded-lg px-3 py-1.5 transition-colors"
+              className="flex items-center gap-1.5 text-sm text-[#434652] hover:text-[#003178] border border-[#c3c6d4] rounded-lg px-3 py-1.5 transition-colors"
             >
               <FaGlobe className="h-4 w-4" />
               {lang === "en" ? "EN" : "AR"}
             </button>
             {isSignedIn ? (
               <Link href="/onboarding">
-                <button className="text-sm font-medium text-gray-700 hover:text-[#0a2540] px-3 py-1.5 transition-colors">
+                <button className="text-sm font-medium text-[#434652] hover:text-[#003178] px-3 py-1.5 transition-colors">
                   {t.nav.login}
                 </button>
               </Link>
             ) : (
               <SignInButton mode="modal">
-                <button className="text-sm font-medium text-gray-700 hover:text-[#0a2540] px-3 py-1.5 transition-colors">
+                <button
+                  onClick={handleSignInClick}
+                  className="text-sm font-medium text-[#434652] hover:text-[#003178] px-3 py-1.5 transition-colors"
+                >
                   {t.nav.login}
                 </button>
               </SignInButton>
             )}
             {isSignedIn ? (
               <Link href="/onboarding">
-                <button className="text-sm font-semibold bg-[#0a2540] text-white px-4 py-2 rounded-lg hover:bg-[#0d3060] transition-colors">
+                <button className="text-sm font-semibold bg-[#003178] text-white px-4 py-2 rounded-lg hover:bg-[#002a5f] transition-colors">
                   {t.nav.getStarted}
                 </button>
               </Link>
             ) : (
               <SignInButton mode="modal">
-                <button className="text-sm font-semibold bg-[#0a2540] text-white px-4 py-2 rounded-lg hover:bg-[#0d3060] transition-colors">
+                <button
+                  onClick={handleSignInClick}
+                  className="text-sm font-semibold bg-[#003178] text-white px-4 py-2 rounded-lg hover:bg-[#002a5f] transition-colors"
+                >
                   {t.nav.getStarted}
                 </button>
               </SignInButton>
@@ -937,30 +906,32 @@ export default function LandingPage() {
           </div>
 
           <div className="flex lg:hidden items-center gap-2">
-            <button onClick={toggleLang} className="p-2 text-gray-600">
+            <button onClick={toggleLang} className="p-2 text-[#434652]">
               <FaGlobe className="h-5 w-5" />
             </button>
-            <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 text-gray-600">
+            <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 text-[#434652]">
               {mobileOpen ? <FaTimes className="h-5 w-5" /> : <FaBars className="h-5 w-5" />}
             </button>
           </div>
         </div>
 
         {mobileOpen && (
-          <div className="lg:hidden bg-white border-t border-gray-100 px-6 py-4 space-y-3">
+          <div className="lg:hidden bg-[#f9f9ff] border-t border-[#c3c6d4] px-6 py-4 space-y-3">
             {[t.nav.students, t.nav.teachers, t.nav.parents, t.nav.liveClasses].map((item) => (
-              <a key={item} href="#" className="block text-sm text-gray-600 py-1">{item}</a>
+              <a key={item} href="#" className="block text-sm text-[#434652] py-1">{item}</a>
             ))}
             <div className="pt-2 flex gap-3">
               {isSignedIn ? (
                 <Link href="/onboarding" className="flex-1">
-                  <button className="w-full text-sm font-semibold bg-[#0a2540] text-white px-4 py-2 rounded-lg">
+                  <button 
+                  onClick={handleSignInClick}
+                  className="w-full text-sm font-semibold bg-[#003178] text-white px-4 py-2 rounded-lg">
                     {t.nav.getStarted}
                   </button>
                 </Link>
               ) : (
                 <SignInButton mode="modal">
-                  <button className="flex-1 text-sm font-semibold bg-[#0a2540] text-white px-4 py-2 rounded-lg">
+                  <button className="flex-1 text-sm font-semibold bg-[#003178] text-white px-4 py-2 rounded-lg">
                     {t.nav.getStarted}
                   </button>
                 </SignInButton>
@@ -971,20 +942,20 @@ export default function LandingPage() {
       </nav>
 
       {/* ── HERO ────────────────────────────────────────────────── */}
-      <section className="pt-28 pb-16 bg-linear-to-br from-[#f0f4f8] via-white to-[#e8f4f8]">
+      <section className="pt-32 pb-16 bg-[#f9f9ff]">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left Content */}
             <div>
               {/* Rating Badge - ✅ من Convex */}
-              <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur border border-gray-200 rounded-full px-4 py-2 shadow-sm animate-fade-in-up">
+              <div className="inline-flex items-center gap-2 bg-[#f9f9ff]/80 backdrop-blur border border-[#c3c6d4] rounded-full px-4 py-2 shadow-sm animate-fade-in-up">
                 <div className="flex items-center gap-1">
                   <span className="text-yellow-400 text-sm">★★★★★</span>
-                  <span className="text-sm font-semibold text-gray-800 mr-1">
+                  <span className="text-sm font-semibold text-[#111c2d] mr-1">
                     {data.heroRating || "4.8"}/5
                   </span>
                 </div>
-                <span className="text-xs text-gray-500 border-r border-gray-200 pr-3">
+                <span className="text-xs text-[#434652] border-r border-[#c3c6d4] pr-3">
                   {lang === "ar"
                     ? data.heroRatingLabelAr || "نسبة رضا الطالب"
                     : data.heroRatingLabel || "Student Satisfaction"}
@@ -995,12 +966,12 @@ export default function LandingPage() {
               </div>
 
               {/* Main Heading - ✅ من Convex */}
-              <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold text-[#0a2540] leading-tight mb-4">
+              <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold text-[#111c2d] leading-tight mb-4">
                 {lang === "ar" ? (
                   <>
                     {data.heroTitleAr || "احجز معلمك الخصوصي لـ"}
                     <br />
-                    <span className="text-[#1a7a8a] inline-block min-w-30 transition-all duration-500 ease-in-out">
+                    <span className="text-[#003178] inline-block min-w-30 transition-all duration-500 ease-in-out">
                       {subjects.ar[currentSubjectIndex]}
                     </span>
                   </>
@@ -1008,7 +979,7 @@ export default function LandingPage() {
                   <>
                     {data.heroTitle || "Book Your Private Tutor for"}
                     <br />
-                    <span className="text-[#1a7a8a] inline-block min-w-35 transition-all duration-500 ease-in-out">
+                    <span className="text-[#003178] inline-block min-w-35 transition-all duration-500 ease-in-out">
                       {subjects.en[currentSubjectIndex]}
                     </span>
                   </>
@@ -1016,40 +987,40 @@ export default function LandingPage() {
               </h1>
 
               {/* Subtitle */}
-              <p className="text-lg text-gray-600 mb-8 max-w-lg">
+              <p className="text-lg text-[#434652] mb-8 max-w-lg">
                 {lang === "ar"
-                  ? "يفهمك المادة ويضمنك العالمة الكاملة"
+                  ? "يفهمك المادة ويصنعك العلامة الكاملة , منصة تعليمية رائدة تقدم دروساً تفاعلية لجميع المراحل."
                   : "Understands the subject and guarantees you the full mark"}
               </p>
 
               {/* CTA Buttons - ✅ من Convex */}
               <div className="flex flex-wrap gap-4 mb-8">
                 <Link href={data.ctaUrl || "/onboarding"}>
-                  <button className="bg-[#0a2540] hover:bg-[#1a3a5c] text-white font-semibold px-8 py-3.5 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105">
+                  <button className="bg-[#003178] hover:bg-[#002a5f] text-white font-semibold px-8 py-3.5 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105">
                     {lang === "ar" ? data.ctaTextAr || "إعرف أكثر عن باقات الدروس" : data.ctaText || "Learn More About Lesson Packages"}
                   </button>
                 </Link>
                 <Link href="/onboarding">
-                  <button className="border-2 border-[#0a2540] text-[#0a2540] hover:bg-[#0a2540] hover:text-white font-semibold px-8 py-3.5 rounded-xl transition-all duration-300">
+                  <button className="border-2 border-[#003178] text-[#003178] hover:bg-[#003178] hover:text-white font-semibold px-8 py-3.5 rounded-xl transition-all duration-300">
                     {lang === "ar" ? "تواصل معنا" : "Contact Us"}
                   </button>
                 </Link>
               </div>
 
               {/* Trust Badges - ✅ من Convex */}
-              <div className="flex flex-wrap items-center gap-6 pt-4 border-t border-gray-200">
+              <div className="flex flex-wrap items-center gap-6 pt-4 border-t border-[#c3c6d4]">
                 {/* Badge 1 - Accreditation */}
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-[#e0f5f7] rounded-xl flex items-center justify-center">
-                    <svg className="w-7 h-7 text-[#1a7a8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-12 h-12 bg-[#e7eeff] rounded-xl flex items-center justify-center">
+                    <svg className="w-7 h-7 text-[#003178]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-[#0a2540]">
+                    <p className="text-sm font-semibold text-[#111c2d]">
                       {lang === "ar" ? "معتمدين من" : "Accredited by"}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-[#434652]">
                       {lang === "ar"
                         ? data.trustBadge1Ar || "المركز الوطني للتعليم الإلكتروني"
                         : data.trustBadge1 || "National eLearning Center"}
@@ -1059,16 +1030,16 @@ export default function LandingPage() {
 
                 {/* Badge 2 - Most Downloaded */}
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-[#e0f5f7] rounded-xl flex items-center justify-center">
-                    <svg className="w-7 h-7 text-[#1a7a8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-12 h-12 bg-[#e7eeff] rounded-xl flex items-center justify-center">
+                    <svg className="w-7 h-7 text-[#003178]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-[#0a2540]">
+                    <p className="text-sm font-semibold text-[#111c2d]">
                       {lang === "ar" ? "المدرسة الأكثر تحميلاً" : "Most Downloaded School"}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-[#434652]">
                       {data.trustBadge2Year || "2023/2024"} {lang === "ar" ? "لعام" : "Year"}
                     </p>
                   </div>
@@ -1076,16 +1047,16 @@ export default function LandingPage() {
 
                 {/* Badge 3 - Academic Levels */}
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-[#e0f5f7] rounded-xl flex items-center justify-center">
-                    <svg className="w-7 h-7 text-[#1a7a8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-12 h-12 bg-[#e7eeff] rounded-xl flex items-center justify-center">
+                    <svg className="w-7 h-7 text-[#003178]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-[#0a2540]">
+                    <p className="text-sm font-semibold text-[#111c2d]">
                       {data.trustBadge3Value || "14+"}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-[#434652]">
                       {lang === "ar"
                         ? data.trustBadge3Ar || "لجميع المراحل الدراسية"
                         : data.trustBadge3 || "For All Academic Levels"}
@@ -1101,7 +1072,7 @@ export default function LandingPage() {
                 {/* Main Image Container */}
                 <div className="relative rounded-3xl overflow-hidden shadow-2xl">
                   <img
-                    src={data.heroImageUrl || "/images/hero.png"}
+                    src={data.heroImageUrl || "/images/hero2.jpg"}
                     alt="Hero illustration"
                     className="w-full h-auto object-cover"
                     onError={(e) => {
@@ -1109,17 +1080,17 @@ export default function LandingPage() {
                     }}
                   />
                   {/* Overlay Gradient */}
-                  <div className="absolute inset-0 bg-linear-to-t from-[#0a2540]/20 to-transparent"></div>
+                  <div className="absolute inset-0 bg-linear-to-t from-[#111c2d]/20 to-transparent"></div>
                 </div>
 
                 {/* ✅ Text under image - النص تحت الصورة (من Convex) */}
                 <div className="mt-7 text-center">
-                  <p className="text-xl md:text-2xl font-bold text-[#0a2540]">
+                  <p className="text-xl md:text-2xl font-bold text-[#111c2d]">
                     {lang === "ar"
                       ? data.heroBottomTextAr || "تعلم الإنجليزية في بريطانيا بخطوات واضحة"
                       : data.heroBottomText || "Learn English in Britain with Confidence"}
                   </p>
-                  <p className="mt-1 text-lg md:text-md text-[#6a7885]">
+                  <p className="mt-1 text-lg md:text-md text-[#434652]">
                     {lang === "ar"
                       ? data.heroBottomSmTextAr || "تعلم الإنجليزية في بريطانيا بخطوات واضحة"
                       : data.heroBottomSmText || "Steps Steps to Learn English in Britain"}
@@ -1127,18 +1098,18 @@ export default function LandingPage() {
                 </div>
 
                 {/* Floating Badge - IB/IGCSE (من Convex) */}
-                <div className="absolute -top-4 -right-4 bg-white rounded-2xl shadow-xl px-5 py-3 border border-gray-100">
+                <div className="absolute -top-4 -right-4 bg-[#f9f9ff] rounded-2xl shadow-xl px-5 py-3 border border-[#c3c6d4]">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-[#e0f5f7] rounded-xl flex items-center justify-center">
-                      <svg className="w-5 h-5 text-[#1a7a8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-10 h-10 bg-[#e7eeff] rounded-xl flex items-center justify-center">
+                      <svg className="w-5 h-5 text-[#003178]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                       </svg>
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-[#0a2540]">
+                      <p className="text-sm font-bold text-[#111c2d]">
                         {data.floatingBadge1 || "IB/IGCSE"}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-[#434652]">
                         {lang === "ar"
                           ? data.floatingBadge1Ar || "المنهاج الوطني"
                           : data.floatingBadge1 || "National Curriculum"}
@@ -1149,10 +1120,10 @@ export default function LandingPage() {
               </div>
 
               {/* Stats floating on image */}
-              <div className="absolute top-1/4 -left-6 bg-white/95 backdrop-blur rounded-2xl shadow-xl px-5 py-3 border border-gray-100">
+              <div className="absolute top-1/4 -left-6 bg-[#f9f9ff]/95 backdrop-blur rounded-2xl shadow-xl px-5 py-3 border border-[#c3c6d4]">
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-[#0a2540]">4.8</p>
-                  <p className="text-xs text-gray-500">⭐ {lang === "ar" ? "تقييم" : "Rating"}</p>
+                  <p className="text-2xl font-bold text-[#111c2d]">4.8</p>
+                  <p className="text-xs text-[#434652]">⭐ {lang === "ar" ? "تقييم" : "Rating"}</p>
                 </div>
               </div>
             </div>
@@ -1161,14 +1132,14 @@ export default function LandingPage() {
       </section>
 
       {/* ── STATIC SECTION: تحصيلي & القدرات ───────────────────────── */}
-      <section className="py-16 bg-white">
+      <section className="py-16 bg-[#f9f9ff]">
         <div className="max-w-7xl mx-auto px-6">
           {/* Section Header */}
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-[#0a2540]">
+            <h2 className="text-5xl font-bold text-[#111c2d]">
               {lang === "ar" ? "اختر مسارك التعليمي" : "Choose Your Educational Path"}
             </h2>
-            <p className="text-gray-500 mt-2">
+            <p className="text-[#434652] mt-2">
               {lang === "ar"
                 ? "برامج متخصصة تناسب احتياجاتك الدراسية"
                 : "Specialized programs that suit your academic needs"}
@@ -1178,30 +1149,31 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-2 gap-8">
 
             {/* ── التحصيلي ─────────────────────────────────────────── */}
-            <div className="group bg-[#f7fafa] rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 border border-gray-100">
+            <div className="group bg-[#f9f9ff] rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 border border-[#c3c6d4]">
               <div className="p-8">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-2xl bg-[#1a7a8a]/10 flex items-center justify-center group-hover:bg-[#1a7a8a]/20 transition-colors">
-                    <svg className="w-6 h-6 text-[#1a7a8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                  </div>
+                <div className="flex justify-between items-center gap-3 mb-4">
+
                   <div>
-                    <h3 className="text-2xl font-bold text-[#0a2540]">
+                    <h3 className="text-2xl font-bold text-[#111c2d]">
                       {lang === "ar" ? "التحصيلي" : "Academic Achievement"}
                     </h3>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-[#434652]">
                       {lang === "ar"
                         ? "برامج متخصصة لتحسين مستواك الأكاديمي"
                         : "Specialized programs to improve your academic level"}
                     </p>
                   </div>
+                  <div className="w-12 h-12 rounded-2xl bg-[#003178]/10 flex items-center justify-center group-hover:bg-[#003178]/20 transition-colors">
+                    <svg className="w-6 h-6 text-[#003178]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                  </div>
                 </div>
 
                 {/* فيديو التحصيلي */}
-                <div className="relative rounded-2xl overflow-hidden aspect-video bg-[#0a2540] group/video">
+                <div className="relative rounded-2xl overflow-hidden aspect-video bg-[#111c2d] group/video">
                   <img
-                    src="/images/academic-thumbnail.jpg"
+                    src="/images/academic2.jpg"
                     alt="التحصيلي"
                     className="w-full h-full object-cover group-hover/video:scale-105 transition-transform duration-500"
                     onError={(e) => {
@@ -1213,7 +1185,7 @@ export default function LandingPage() {
                       onClick={() => window.open("https://youtu.be/tOFm-zoI6-w", "_blank")}
                       className="w-16 h-16 bg-white/90 hover:bg-white rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-lg"
                     >
-                      <svg className="w-8 h-8 text-[#0a2540] ml-1" fill="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-8 h-8 text-[#111c2d] ml-1" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M8 5v14l11-7z" />
                       </svg>
                     </button>
@@ -1221,46 +1193,40 @@ export default function LandingPage() {
                 </div>
 
                 <div className="mt-4 flex items-center justify-between">
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-[#434652]">
                     {lang === "ar"
                       ? "🎓 دروس تفاعلية مع أفضل المعلمين"
                       : "🎓 Interactive lessons with the best teachers"}
                   </p>
-                  {/* <Link href="/academic">
-                    <button className="text-sm font-semibold text-[#1a7a8a] hover:text-[#0a2540] transition-colors flex items-center gap-1">
-                      {lang === "ar" ? "اعرف أكثر" : "Learn More"}
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  </Link> */}
                 </div>
               </div>
             </div>
 
             {/* ── القدرات ──────────────────────────────────────────── */}
-            <div className="group bg-[#f7fafa] rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 border border-gray-100">
+            <div className="group bg-[#f9f9ff] rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 border border-[#c3c6d4]">
               <div className="p-8">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-2xl bg-purple-100 flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  </div>
+                <div className="flex justify-between items-center gap-3 mb-4">
                   <div>
-                    <h3 className="text-2xl font-bold text-[#0a2540]">
+                    <h3 className="text-2xl font-bold text-[#111c2d]">
                       {lang === "ar" ? "القدرات" : "Aptitude Programs"}
                     </h3>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-[#434652]">
                       {lang === "ar"
                         ? "استعد لاختبارات القدرات بثقة"
                         : "Prepare for aptitude tests with confidence"}
                     </p>
                   </div>
+                  <div className="w-12 h-12 rounded-2xl bg-[#003178]/10 flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+                    <svg className="w-6 h-6 text-[#003178]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
                 </div>
 
                 {/* فيديو القدرات */}
-                <div className="relative rounded-2xl overflow-hidden aspect-video bg-[#0a2540] group/video">
+                <div className="relative rounded-2xl overflow-hidden aspect-video bg-[#111c2d] group/video">
                   <img
-                    src="/images/aptitude.png"
+                    src="/images/aptitude2.jpg"
                     alt="القدرات"
                     className="w-full h-full object-cover group-hover/video:scale-105 transition-transform duration-500"
                     onError={(e) => {
@@ -1272,7 +1238,7 @@ export default function LandingPage() {
                       onClick={() => window.open("https://youtu.be/AFh1-fqdaf4", "_blank")}
                       className="w-16 h-16 bg-white/90 hover:bg-white rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-lg"
                     >
-                      <svg className="w-8 h-8 text-[#0a2540] ml-1" fill="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-8 h-8 text-[#111c2d] ml-1" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M8 5v14l11-7z" />
                       </svg>
                     </button>
@@ -1280,17 +1246,11 @@ export default function LandingPage() {
                 </div>
 
                 <div className="mt-4 flex items-center justify-between">
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-[#434652]">
                     {lang === "ar"
                       ? "🎯 تدريبات واختبارات محاكاة واقعية"
                       : "🎯 Realistic simulation exercises and tests"}
                   </p>
-                  {/* <Link href="/aptitude">
-                    <button className="text-sm font-semibold text-purple-600 hover:text-purple-800 transition-colors flex items-center gap-1">
-                      {lang === "ar" ? "اعرف أكثر" : "Learn More"}
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  </Link> */}
                 </div>
               </div>
             </div>
@@ -1300,15 +1260,15 @@ export default function LandingPage() {
       </section>
 
       {/* ── REGISTRATION SECTION ────────────────────────────────────── */}
-      <section className="py-25 bg-linear-to-r from-[#001f24] to-[#03363d]">
+      <section className="py-25 bg-[#111c2d]">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-14">
             <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="w-1 h-8 bg-[#1a7a8a] rounded-full"></div>
+              <div className="w-1 h-8 bg-[#003178] rounded-full"></div>
               <h2 className="text-3xl font-bold text-white">
                 {lang === "ar" ? "سجل الآن وابدأ رحلتك" : "Register Now and Start Your Journey"}
               </h2>
-              <div className="w-1 h-8 bg-[#1a7a8a] rounded-full"></div>
+              <div className="w-1 h-8 bg-[#003178] rounded-full"></div>
             </div>
             <p className="text-[#a3ced6]">
               {lang === "ar"
@@ -1319,9 +1279,9 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Card 1 - التسجيل في المنصة */}
-            <div className="group bg-white/10 backdrop-blur-md rounded-2xl p-6 text-center hover:bg-white/20 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl border border-white/10 hover:border-[#1a7a8a]/50">
-              <div className="w-16 h-16 rounded-2xl bg-[#1a7a8a]/20 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#1a7a8a]/40 transition-colors">
-                <svg className="w-8 h-8 text-[#1a7a8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="group bg-white/10 backdrop-blur-md rounded-2xl p-6 text-center hover:bg-white/20 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl border border-white/10 hover:border-[#003178]/50">
+              <div className="w-16 h-16 rounded-2xl bg-[#003178]/20 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#003178]/40 transition-colors">
+                <svg className="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                 </svg>
               </div>
@@ -1335,14 +1295,14 @@ export default function LandingPage() {
               </p>
               {isSignedIn ? (
                 <Link href="/onboarding">
-                  <Button className="w-full bg-[#1a7a8a] hover:bg-[#15707e] text-white transition-all duration-300 group-hover:scale-105">
+                  <Button className="w-full bg-[#003178] hover:bg-[#002a5f] text-white transition-all duration-300 group-hover:scale-105">
                     {lang === "ar" ? "سجل الآن" : "Register Now"}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </Link>
               ) : (
                 <SignInButton mode="modal">
-                  <Button className="w-full bg-[#1a7a8a] hover:bg-[#15707e] text-white transition-all duration-300 group-hover:scale-105">
+                  <Button className="w-full bg-[#003178] hover:bg-[#002a5f] text-white transition-all duration-300 group-hover:scale-105">
                     {lang === "ar" ? "سجل الآن" : "Register Now"}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
@@ -1351,9 +1311,9 @@ export default function LandingPage() {
             </div>
 
             {/* Card 2 - التسجيل في التحصيل الدراسي */}
-            <div className="group bg-white/10 backdrop-blur-md rounded-2xl p-6 text-center hover:bg-white/20 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl border border-white/10 hover:border-[#1a7a8a]/50">
-              <div className="w-16 h-16 rounded-2xl bg-[#1a7a8a]/20 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#1a7a8a]/40 transition-colors">
-                <svg className="w-8 h-8 text-[#1a7a8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="group bg-white/10 backdrop-blur-md rounded-2xl p-6 text-center hover:bg-white/20 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl border border-white/10 hover:border-[#003178]/50">
+              <div className="w-16 h-16 rounded-2xl bg-[#003178]/20 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#003178]/40 transition-colors">
+                <svg className="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
@@ -1367,14 +1327,14 @@ export default function LandingPage() {
               </p>
               {isSignedIn ? (
                 <Link href="/onboarding">
-                  <Button className="w-full bg-[#1a7a8a] hover:bg-[#15707e] text-white transition-all duration-300 group-hover:scale-105">
+                  <Button className="w-full bg-[#003178] hover:bg-[#002a5f] text-white transition-all duration-300 group-hover:scale-105">
                     {lang === "ar" ? "سجل الآن" : "Register Now"}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </Link>
               ) : (
                 <SignInButton mode="modal">
-                  <Button className="w-full bg-[#1a7a8a] hover:bg-[#15707e] text-white transition-all duration-300 group-hover:scale-105">
+                  <Button className="w-full bg-[#003178] hover:bg-[#002a5f] text-white transition-all duration-300 group-hover:scale-105">
                     {lang === "ar" ? "سجل الآن" : "Register Now"}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
@@ -1383,9 +1343,9 @@ export default function LandingPage() {
             </div>
 
             {/* Card 3 - التسجيل في القدرات */}
-            <div className="group bg-white/10 backdrop-blur-md rounded-2xl p-6 text-center hover:bg-white/20 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl border border-white/10 hover:border-[#1a7a8a]/50">
-              <div className="w-16 h-16 rounded-2xl bg-[#1a7a8a]/20 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#1a7a8a]/40 transition-colors">
-                <svg className="w-8 h-8 text-[#1a7a8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="group bg-white/10 backdrop-blur-md rounded-2xl p-6 text-center hover:bg-white/20 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl border border-white/10 hover:border-[#003178]/50">
+              <div className="w-16 h-16 rounded-2xl bg-[#003178]/20 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#003178]/40 transition-colors">
+                <svg className="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
@@ -1399,14 +1359,14 @@ export default function LandingPage() {
               </p>
               {isSignedIn ? (
                 <Link href="/onboarding">
-                  <Button className="w-full bg-[#1a7a8a] hover:bg-[#15707e] text-white transition-all duration-300 group-hover:scale-105">
+                  <Button className="w-full bg-[#003178] hover:bg-[#002a5f] text-white transition-all duration-300 group-hover:scale-105">
                     {lang === "ar" ? "سجل الآن" : "Register Now"}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </Link>
               ) : (
                 <SignInButton mode="modal">
-                  <Button className="w-full bg-[#1a7a8a] hover:bg-[#15707e] text-white transition-all duration-300 group-hover:scale-105">
+                  <Button className="w-full bg-[#003178] hover:bg-[#002a5f] text-white transition-all duration-300 group-hover:scale-105">
                     {lang === "ar" ? "سجل الآن" : "Register Now"}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
@@ -1415,9 +1375,9 @@ export default function LandingPage() {
             </div>
 
             {/* Card 4 - التسجيل في الرحلات */}
-            <div className="group bg-white/10 backdrop-blur-md rounded-2xl p-6 text-center hover:bg-white/20 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl border border-white/10 hover:border-[#1a7a8a]/50">
-              <div className="w-16 h-16 rounded-2xl bg-[#1a7a8a]/20 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#1a7a8a]/40 transition-colors">
-                <svg className="w-8 h-8 text-[#1a7a8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="group bg-white/10 backdrop-blur-md rounded-2xl p-6 text-center hover:bg-white/20 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl border border-white/10 hover:border-[#003178]/50">
+              <div className="w-16 h-16 rounded-2xl bg-[#003178]/20 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#003178]/40 transition-colors">
+                <svg className="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
@@ -1430,7 +1390,7 @@ export default function LandingPage() {
                   : "Join our educational trips and Travel to Britain"}
               </p>
               <Link href="/trips"  >
-                <Button className="w-full bg-[#1a7a8a] hover:bg-[#15707e] text-white transition-all duration-300 group-hover:scale-105">
+                <Button className="w-full bg-[#003178] hover:bg-[#002a5f] text-white transition-all duration-300 group-hover:scale-105">
                   {lang === "ar" ? "سجل الآن" : "Register Now"}
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
@@ -1441,13 +1401,13 @@ export default function LandingPage() {
       </section>
 
       {/* ── WHY CHOOSE US ────────────────────────────────────────────── */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-[#f9f9ff]">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-bold text-[#0a2540] mb-3">
+            <h2 className="text-3xl md:text-4xl font-bold text-[#111c2d] mb-3">
               {lang === "ar" ? "لماذا تختارنا؟" : "Why Choose Us?"}
             </h2>
-            <p className="text-gray-500 max-w-2xl mx-auto">
+            <p className="text-[#434652] max-w-2xl mx-auto">
               {lang === "ar"
                 ? "نقدم لك تجربة تعليمية متكاملة تجمع بين الجودة والمرونة والدعم المستمر"
                 : "We offer you an integrated educational experience that combines quality, flexibility, and continuous support"}
@@ -1456,14 +1416,14 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Card 1 */}
-            <div className="group bg-[#f7fafa] rounded-2xl p-6 text-center hover:bg-[#e0f5f7] transition-all duration-300 hover:-translate-y-2 hover:shadow-lg">
-              <div className="w-16 h-16 rounded-2xl bg-[#1a7a8a]/10 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#1a7a8a]/20 transition-colors">
-                <IoBookOutline className="w-7 h-7 text-[#1a7a8a] " />
+            <div className="group bg-[#f9f9ff] rounded-2xl p-6 text-center hover:bg-[#e7eeff] transition-all duration-300 hover:-translate-y-2 hover:shadow-lg border border-[#c3c6d4]">
+              <div className="w-16 h-16 rounded-2xl bg-[#003178]/10 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#003178]/20 transition-colors">
+                <IoBookOutline className="w-7 h-7 text-[#003178] " />
               </div>
-              <h3 className="text-lg font-bold text-[#0a2540] mb-2">
+              <h3 className="text-lg font-bold text-[#111c2d] mb-2">
                 {lang === "ar" ? "معلمون خبراء" : "Expert Teachers"}
               </h3>
-              <p className="text-sm text-gray-500 leading-relaxed">
+              <p className="text-sm text-[#434652] leading-relaxed">
                 {lang === "ar"
                   ? "نخبة من المعلمين المتميزين ذوي الخبرة في جميع المواد الدراسية"
                   : "A select group of distinguished teachers with experience in all subjects"}
@@ -1471,14 +1431,14 @@ export default function LandingPage() {
             </div>
 
             {/* Card 2 */}
-            <div className="group bg-[#f7fafa] rounded-2xl p-6 text-center hover:bg-[#e0f5f7] transition-all duration-300 hover:-translate-y-2 hover:shadow-lg">
-              <div className="w-16 h-16 rounded-2xl bg-[#1a7a8a]/10 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#1a7a8a]/20 transition-colors">
-                <LuClock5 className="w-7 h-7 text-[#1a7a8a] " />
+            <div className="group bg-[#f9f9ff] rounded-2xl p-6 text-center hover:bg-[#e7eeff] transition-all duration-300 hover:-translate-y-2 hover:shadow-lg border border-[#c3c6d4]">
+              <div className="w-16 h-16 rounded-2xl bg-[#003178]/10 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#003178]/20 transition-colors">
+                <LuClock5 className="w-7 h-7 text-[#003178] " />
               </div>
-              <h3 className="text-lg font-bold text-[#0a2540] mb-2">
+              <h3 className="text-lg font-bold text-[#111c2d] mb-2">
                 {lang === "ar" ? "مرونة في المواعيد" : "Flexible Scheduling"}
               </h3>
-              <p className="text-sm text-gray-500 leading-relaxed">
+              <p className="text-sm text-[#434652] leading-relaxed">
                 {lang === "ar"
                   ? "اختر المواعيد التي تناسب جدولك الدراسي والشخصي بكل سهولة"
                   : "Choose the times that fit your academic and personal schedule with ease"}
@@ -1486,14 +1446,14 @@ export default function LandingPage() {
             </div>
 
             {/* Card 3 */}
-            <div className="group bg-[#f7fafa] rounded-2xl p-6 text-center hover:bg-[#e0f5f7] transition-all duration-300 hover:-translate-y-2 hover:shadow-lg">
-              <div className="w-16 h-16 rounded-2xl bg-[#1a7a8a]/10 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#1a7a8a]/20 transition-colors">
-                <ShieldCheck className="w-7 h-7 text-[#1a7a8a] " />
+            <div className="group bg-[#f9f9ff] rounded-2xl p-6 text-center hover:bg-[#e7eeff] transition-all duration-300 hover:-translate-y-2 hover:shadow-lg border border-[#c3c6d4]">
+              <div className="w-16 h-16 rounded-2xl bg-[#003178]/10 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#003178]/20 transition-colors">
+                <ShieldCheck className="w-7 h-7 text-[#003178] " />
               </div>
-              <h3 className="text-lg font-bold text-[#0a2540] mb-2">
+              <h3 className="text-lg font-bold text-[#111c2d] mb-2">
                 {lang === "ar" ? "ضمان الجودة" : "Quality Guarantee"}
               </h3>
-              <p className="text-sm text-gray-500 leading-relaxed">
+              <p className="text-sm text-[#434652] leading-relaxed">
                 {lang === "ar"
                   ? "نضمن لك تجربة تعليمية متميزة مع متابعة مستمرة لتقييم الأداء"
                   : "We guarantee you a distinguished educational experience with continuous performance evaluation"}
@@ -1501,14 +1461,14 @@ export default function LandingPage() {
             </div>
 
             {/* Card 4 */}
-            <div className="group bg-[#f7fafa] rounded-2xl p-6 text-center hover:bg-[#e0f5f7] transition-all duration-300 hover:-translate-y-2 hover:shadow-lg">
-              <div className="w-16 h-16 rounded-2xl bg-[#1a7a8a]/10 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#1a7a8a]/20 transition-colors">
-                <HiOutlineUserGroup className="w-7 h-7 text-[#1a7a8a] " />
+            <div className="group bg-[#f9f9ff] rounded-2xl p-6 text-center hover:bg-[#e7eeff] transition-all duration-300 hover:-translate-y-2 hover:shadow-lg border border-[#c3c6d4]">
+              <div className="w-16 h-16 rounded-2xl bg-[#003178]/10 flex items-center justify-center mx-auto mb-4 group-hover:bg-[#003178]/20 transition-colors">
+                <HiOutlineUserGroup className="w-7 h-7 text-[#003178] " />
               </div>
-              <h3 className="text-lg font-bold text-[#0a2540] mb-2">
+              <h3 className="text-lg font-bold text-[#111c2d] mb-2">
                 {lang === "ar" ? "دعم متواصل" : "24/7 Support"}
               </h3>
-              <p className="text-sm text-gray-500 leading-relaxed">
+              <p className="text-sm text-[#434652] leading-relaxed">
                 {lang === "ar"
                   ? "فريق دعم متخصص للإجابة على استفساراتك وحل أي مشكلة تواجهك"
                   : "A specialized support team to answer your inquiries and solve any problem you face"}
@@ -1567,11 +1527,8 @@ export default function LandingPage() {
       {/* ── Courses from Convex ─────────────────────────────────── */}
       {renderCourses()}
 
-
-
-
       {/* ── CONTACT SECTION ────────────────────────────────────────── */}
-      <section className="py-20 bg-linear-to-br from-[#0a2540] to-[#1a7a8a]">
+      <section className="py-20 bg-[#14696d]">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
             {lang === "ar" ? "تواصل معنا للمزيد من التفاصيل" : "Contact Us for More Details"}
@@ -1657,12 +1614,12 @@ export default function LandingPage() {
       {renderTestimonials()}
 
       {/* ── FINAL CTA ───────────────────────────────────────────── */}
-      <section className="py-24 bg-[#0a2540]">
+      <section className="py-24 bg-[#111c2d]">
         <div className="max-w-3xl mx-auto px-6 text-center">
           <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4">
             {lang === "ar" ? "هل أنت مستعد لبدء رحلتك التعليمية؟" : "Ready to Start Your Learning Journey?"}
           </h2>
-          <p className="text-[#8eafc4] mb-10 leading-relaxed">
+          <p className="text-[#a3ced6] mb-10 leading-relaxed">
             {lang === "ar"
               ? "انضم إلى آلاف الطلاب اليوم واستمتع بتجربة تعليمية فريدة مع أفضل المعلمين والخبراء."
               : "Join thousands of students today and enjoy a unique learning experience with the best teachers and experts."}
@@ -1670,13 +1627,13 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             {isSignedIn ? (
               <Link href={data.ctaUrl || "/onboarding"}>
-                <button className="bg-white text-[#0a2540] font-semibold px-8 py-3.5 rounded-xl hover:bg-gray-100 transition-colors">
+                <button className="bg-white text-[#111c2d] font-semibold px-8 py-3.5 rounded-xl hover:bg-gray-100 transition-colors">
                   {lang === "ar" ? "ابدأ الآن مجاناً" : "Start Now for Free"}
                 </button>
               </Link>
             ) : (
               <SignInButton mode="modal">
-                <button className="bg-white text-[#0a2540] font-semibold px-8 py-3.5 rounded-xl hover:bg-gray-100 transition-colors">
+                <button className="bg-white text-[#111c2d] font-semibold px-8 py-3.5 rounded-xl hover:bg-gray-100 transition-colors">
                   {lang === "ar" ? "ابدأ الآن مجاناً" : "Start Now for Free"}
                 </button>
               </SignInButton>
@@ -1689,7 +1646,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FOOTER ──────────────────────────────────────────────── */}
-      <footer className="bg-[#060f1a] text-white py-16">
+      <footer className="bg-black text-white py-16">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-2 lg:grid-cols-6 gap-8 mb-12">
             <div className="col-span-2">

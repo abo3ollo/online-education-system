@@ -32,6 +32,7 @@ import {
   ChevronRight,
   FolderOpen,
   Package,
+  Loader2,
 } from "lucide-react";
 import { PiStudentBold, PiTreasureChestFill } from "react-icons/pi";
 import { FaChalkboardTeacher, FaHandshake } from "react-icons/fa";
@@ -39,32 +40,125 @@ import { LuBaggageClaim } from "react-icons/lu";
 import { IoMdTrendingUp } from "react-icons/io";
 import { SiGoogleclassroom } from "react-icons/si";
 import { IoChatbubbleOutline } from "react-icons/io5";
+import { useMemo } from "react";
 
-// بيانات النشاط الأخير
-const recentActivities = [
-  { user: "أحمد محمد", action: "أكمل واجب", course: "الرياضيات 101", time: "منذ 2 دقيقة", avatar: "أ" },
-  { user: "سارة علي", action: "انضمت إلى الفصل", course: "الفيزياء 202", time: "منذ 15 دقيقة", avatar: "س" },
-  { user: "محمد حسن", action: "سلم اختبار", course: "مختبر الكيمياء", time: "منذ ساعة", avatar: "م" },
-  { user: "نورة عبدالله", action: "شاهدت دورة", course: "الأحياء 303", time: "منذ ساعتين", avatar: "ن" },
-];
+// ── Stats Card Component ─────────────────────────────────────────
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+  trend,
+  up,
+  iconBg,
+  iconColor,
+  isLoading,
+}: {
+  title: string;
+  value: string | number;
+  icon: any;
+  trend?: string;
+  up?: boolean;
+  iconBg: string;
+  iconColor: string;
+  isLoading?: boolean;
+}) {
+  return (
+    <div className="group bg-white rounded-2xl px-5 py-4 border border-gray-100 hover:border-[#1a7a8a]/20 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+      <div className="flex items-start justify-between">
+        <div
+          className={`w-12 h-12 rounded-2xl ${iconBg} flex items-center justify-center group-hover:scale-110 transition-transform`}
+        >
+          <Icon className={`h-6 w-6 ${iconColor}`} />
+        </div>
+        {trend && (
+          <span
+            className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 ${
+              up ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"
+            }`}
+          >
+            {trend}
+            {up ? (
+              <ArrowUpRight className="h-3 w-3" />
+            ) : (
+              <ArrowDownRight className="h-3 w-3" />
+            )}
+          </span>
+        )}
+      </div>
+      <div className="mt-3">
+        {isLoading ? (
+          <div className="h-9 flex items-center">
+            <Loader2 className="h-5 w-5 animate-spin text-[#1a7a8a]" />
+          </div>
+        ) : (
+          <p className="text-2xl font-bold text-[#001f24]">{value}</p>
+        )}
+        <p className="text-sm text-gray-500 mt-0.5">{title}</p>
+      </div>
+    </div>
+  );
+}
 
-// الأحداث القادمة
-const upcomingEvents = [
-  { title: "اختبار رياضيات", time: "اليوم، 3:00 م", color: "bg-blue-500" },
-  { title: "مختبر فيزياء", time: "غداً، 10:00 ص", color: "bg-green-500" },
-  { title: "اجتماع المعلمين", time: "15 فبراير، 9:00 ص", color: "bg-purple-500" },
-];
-
-// أفضل الدورات
-const topCourses = [
-  { name: "الرياضيات 101", students: 45, progress: 78, color: "#1a7a8a" },
-  { name: "الفيزياء 202", students: 32, progress: 65, color: "#2d9cdb" },
-  { name: "مختبر الكيمياء", students: 28, progress: 52, color: "#27ae60" },
-];
 
 export default function AdminDashboard() {
   const currentUser = useQuery(api.user.auth.getCurrentUser);
   const pendingUsers = useQuery(api.user.admin.getPendingRegistrations);
+  const studentsData = useQuery(api.user.students.getStudents,{});
+  const teachersData = useQuery(api.user.teachers.getTeachers,{});
+  const groupsData = useQuery(api.groups.groups.getGroups,{});
+
+  const isLoading =
+    studentsData === undefined ||
+    teachersData === undefined ||
+    groupsData === undefined;
+
+
+    const stats = useMemo(() => {
+    const students = studentsData || [];
+    const teachers = teachersData || [];
+    const groups = groupsData || [];
+
+    // ✅ حساب الإحصائيات
+    const totalStudents = students.length;
+    const totalTeachers = teachers.length;
+    const totalGroups = groups.length;
+
+    // ✅ حساب النسبة المئوية للتغير (مثال: يمكنك تعديل المنطق حسب الحاجة)
+    // هنا نفترض أن النسبة المئوية محسوبة من البيانات الفعلية أو يمكنك إضافة منطق خاص
+    const studentGrowth = totalStudents > 0 ? "+12%" : "0%";
+    const teacherGrowth = totalTeachers > 0 ? "+8%" : "0%";
+    const groupGrowth = totalGroups > 0 ? "+15%" : "0%";
+
+    return [
+      {
+        title: "الطلاب",
+        value: totalStudents,
+        icon: PiStudentBold,
+        trend: studentGrowth,
+        up: true,
+        iconBg: "bg-blue-50",
+        iconColor: "text-blue-500",
+      },
+      {
+        title: "المعلمون",
+        value: totalTeachers,
+        icon: FaChalkboardTeacher,
+        trend: teacherGrowth,
+        up: true,
+        iconBg: "bg-teal-50",
+        iconColor: "text-teal-500",
+      },
+      {
+        title: "المجموعات",
+        value: totalGroups,
+        icon: SiGoogleclassroom,
+        trend: groupGrowth,
+        up: true,
+        iconBg: "bg-green-50",
+        iconColor: "text-green-500",
+      },
+    ];
+  }, [studentsData, teachersData, groupsData]);
 
   if (!currentUser) {
     return (
@@ -74,12 +168,7 @@ export default function AdminDashboard() {
     );
   }
 
-  const stats = [
-    { title: "الطلاب", value: "١,٢٤٧", icon: PiStudentBold, trend: "+١٢٪", up: true, iconBg: "bg-blue-50", iconColor: "text-blue-500" },
-    { title: "المعلمون", value: "٤٨", icon: FaChalkboardTeacher, trend: "+٨٪", up: true, iconBg: "bg-teal-50", iconColor: "text-teal-500" },
-    { title: "الدورات", value: "١٥٦", icon: BookOpen, trend: "+١٥٪", up: true, iconBg: "bg-slate-100", iconColor: "text-slate-500" },
-    { title: "المجموعات", value: "20", icon: SiGoogleclassroom, trend: "+٢٣٪", up: true, iconBg: "bg-green-50", iconColor: "text-green-500" },
-  ];
+  
 
   const quickActionsGrid = [
     { title: "المعلمون", icon: FaChalkboardTeacher, href: "/admin/teachers", color: "emerald" },
@@ -176,29 +265,20 @@ export default function AdminDashboard() {
           )}
 
         {/* بطاقات الإحصائيات */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {stats.map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <div
-                key={stat.title}
-                className="group bg-white rounded-2xl px-5 py-2 border border-gray-100 hover:border-[#1a7a8a]/20 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
-              >
-                <div className="flex items-start justify-between">
-                  <div className={`w-12 h-12 rounded-2xl ${stat.iconBg} flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                    <Icon className={`h-6 w-6 ${stat.iconColor}`} />
-                  </div>
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 ${stat.up ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"
-                    }`}>
-                    {stat.trend}
-                    {stat.up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                  </span>
-                </div>
-                <p className="text-3xl font-bold text-[#001f24] mt-4">{stat.value} <span className="text-sm text-gray-500 mt-1">{stat.title}</span></p>
-                
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {stats.map((stat) => (
+            <StatCard
+              key={stat.title}
+              title={stat.title}
+              value={stat.value}
+              icon={stat.icon}
+              trend={stat.trend}
+              up={stat.up}
+              iconBg={stat.iconBg}
+              iconColor={stat.iconColor}
+              isLoading={isLoading}
+            />
+          ))}
         </div>
 
         {/* قسم المخططات والنشاط */}

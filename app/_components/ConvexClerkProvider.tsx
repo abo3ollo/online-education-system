@@ -1,162 +1,159 @@
 // app/_components/ConvexClerkProvider.tsx
+
 "use client";
 
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ClerkProvider, useAuth, useUser } from "@clerk/nextjs";
 import { ConvexReactClient } from "convex/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useQuery } from "convex/react";
 import { useRouter, usePathname } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
+const ADMIN_WHITELIST = [
+  "admin123@gmail.com",
+  "admin@marineacademy.com",
+  "your-email@gmail.com",
+  "digitallandsystems2025@gmail.com",
+  "abdalrahmanyehia333@gmail.com",
+];
+
+// Pages that should never trigger auto-redirect
+const PUBLIC_PAGES   = ["/", "/trips", "/aptitude-landing", "/academic-landing"];
+const AUTH_PAGES     = ["/sign-in", "/sign-up", "/onboarding", "/pending-approval", "/account-rejected", "/subscription"];
+const PLATFORM_PAGES = ["/student", "/teacher", "/parent", "/admin", "/aptitude", "/academic"];
+
 function UserSync() {
-  const { user, isLoaded: userLoaded } = useUser();
-  const { isSignedIn, userId } = useAuth();
-  const router = useRouter();
+  const { isLoaded: userLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+  const router   = useRouter();
   const pathname = usePathname();
-  const [isReady, setIsReady] = useState(false);
-  
+
+  // ✅ Track whether user just signed in using sessionStorage
+  const hasRedirected = useRef(false);
+  const isSigningIn = useRef(false);
+
   const currentUser = useQuery(
     api.user.auth.getCurrentUser,
-    isSignedIn && userId ? {} : "skip"
+    isSignedIn ? {} : "skip"
   );
 
-  // ✅ قائمة الأدمن المسموح لهم
-  const ADMIN_WHITELIST = [
-    "admin123@gmail.com",
-    "admin@marineacademy.com",
-    "your-email@gmail.com",
-    "digitallandsystems2025@gmail.com",
-    "abdalrahmanyehia333@gmail.com",
-  ];
-
+  // ✅ عند تغيير حالة تسجيل الدخول، نخزن في sessionStorage
   useEffect(() => {
-    if (userLoaded && isSignedIn !== undefined) {
-      setIsReady(true);
+    if (!userLoaded) return;
+    
+    if (isSignedIn) {
+      sessionStorage.setItem("clerk_signed_in", "true");
+    } else {
+      sessionStorage.removeItem("clerk_signed_in");
     }
   }, [userLoaded, isSignedIn]);
 
-// app/_components/ConvexClerkProvider.tsx
+  // ✅ التحقق من أن المستخدم دخل للتو
+  useEffect(() => {
+    if (!userLoaded) return;
+    if (currentUser === undefined) return;
 
-useEffect(() => {
-  // ✅ لو في صفحة الاشتراك، منعملش أي توجيه
-  if (pathname?.startsWith("/subscription")) {
-    return;
-  }
+    // ── Not signed in ─────────────────────────────────────────
+    if (!isSignedIn) {
+      hasRedirected.current = false;
+      isSigningIn.current = false;
 
-  if (!userLoaded || !isReady) {
-    return;
-  }
-
-  if (!isSignedIn) {
-    const protectedPaths = ["/student", "/teacher", "/parent", "/admin", "/aptitude", "/academic"];
-    if (protectedPaths.some((path) => pathname?.startsWith(path))) {
-      router.push("/");
-    }
-    return;
-  }
-
-  if (currentUser === undefined) {
-    return;
-  }
-
-  if (currentUser === null) {
-    const skipRedirectPaths = ["/onboarding", "/sign-in", "/sign-up", "/"];
-    if (!skipRedirectPaths.some((path) => pathname?.startsWith(path))) {
-      router.replace("/onboarding");
-    }
-    return;
-  }
-
-  const role = (currentUser as any).role;
-  const status = currentUser.status;
-  const tracks = (currentUser as any).tracks || [];
-  const email = currentUser.email;
-
-  // ✅ لو أدمن في الـ Whitelist → يروح admin
-  if (role === "admin" && ADMIN_WHITELIST.includes(email?.toLowerCase())) {
-    if (pathname !== "/admin" && !pathname?.startsWith("/admin")) {
-      router.replace("/admin");
-    }
-    return;
-  }
-
-  // ✅ لو pending → pending-approval
-  if (status === "pending") {
-    if (pathname !== "/pending-approval") {
-      router.replace("/pending-approval");
-    }
-    return;
-  }
-
-  // ✅ لو rejected → account-rejected
-  if (status === "rejected") {
-    if (pathname !== "/account-rejected") {
-      router.replace("/account-rejected");
-    }
-    return;
-  }
-
-  // ✅ لو active أو approved → توجيه مرة واحدة فقط (عند تسجيل الدخول)
-  if (status === "active" || status === "approved") {
-    
-    // ✅ IMPORTANT: منع التوجيه التلقائي إذا كان المستخدم أصلاً في صفحة
-    // هذه هي النقطة الأساسية - منع التوجيه بعد تسجيل الدخول
-    
-    // ✅ لو هو أصلاً في أي صفحة من صفحات المنصة → منعملش توجيه
-    if (pathname?.startsWith("/student") || 
-        pathname?.startsWith("/teacher") || 
-        pathname?.startsWith("/parent") || 
-        pathname?.startsWith("/admin") ||
-        pathname?.startsWith("/aptitude") ||
-        pathname?.startsWith("/academic")) {
-      return; // ✅ منعملش توجيه
-    }
-
-    // ✅ لو في الصفحة الرئيسية → منعملش توجيه (خلينا المستخدم يختار)
-    if (pathname === "/") {
+      // Protect platform pages
+      if (PLATFORM_PAGES.some((p) => pathname?.startsWith(p))) {
+        router.push("/");
+      }
       return;
     }
 
-    // ── توجيه حسب المسارات (يحدث فقط أول مرة) ──────────────
+    // ── Signed in but no Convex user yet ──────────────────────
+    if (currentUser === null) {
+      const skip = [...AUTH_PAGES, ...PUBLIC_PAGES];
+      if (!skip.some((p) => pathname === p || pathname?.startsWith(p))) {
+        router.replace("/onboarding");
+      }
+      return;
+    }
+
+    // ── Signed in + Convex user exists ────────────────────────
+    const role   = (currentUser as any).role   as string;
+    const status = (currentUser as any).status as string;
+    const tracks = (currentUser as any).tracks as string[] || [];
+    const email  = (currentUser as any).email  as string  || "";
+
+    // Already on a protected/platform page → don't touch
+    if (PLATFORM_PAGES.some((p) => pathname?.startsWith(p))) {
+      return;
+    }
+
+    // Auth-flow pages (pending, rejected, onboarding) → handle them
+    if (status === "pending") {
+      if (pathname !== "/pending-approval") router.replace("/pending-approval");
+      return;
+    }
+    if (status === "rejected") {
+      if (pathname !== "/account-rejected") router.replace("/account-rejected");
+      return;
+    }
+
+    // ✅ Check if user just signed in via sessionStorage
+    const justSignedIn = sessionStorage.getItem("clerk_signed_in") === "true";
+    const onAuthPage   = AUTH_PAGES.some((p) => pathname === p || pathname?.startsWith(p));
+    const onHomePage   = pathname === "/";
+
+    const shouldRedirect = (
+      (status === "active" || status === "approved") &&
+      (justSignedIn || onAuthPage) &&
+      !hasRedirected.current
+    );
+
+    if (!shouldRedirect) {
+      // ✅ If user is on home page while signed in → do NOT redirect
+      // Let them browse the landing page freely
+      return;
+    }
+
+    // ── Perform the redirect ──────────────────────────────────
+    hasRedirected.current = true;
     
-    // ✅ الأولوية للمنصة
+    // ✅ Clear sessionStorage after redirect
+    sessionStorage.removeItem("clerk_signed_in");
+
+    // Admin whitelist
+    if (role === "admin" && ADMIN_WHITELIST.includes(email.toLowerCase())) {
+      router.replace("/admin");
+      return;
+    }
+
+    // By track
     if (tracks.includes("platform")) {
       const routes: Record<string, string> = {
         student: "/student",
         teacher: "/teacher",
-        parent: "/parent",
-        admin: "/admin",
+        parent:  "/parent",
+        admin:   "/admin",
       };
-      const dashboardPath = routes[role];
-      if (dashboardPath) {
-        router.replace(dashboardPath);
-        return;
-      }
+      if (routes[role]) { router.replace(routes[role]); return; }
     }
+    if (tracks.includes("aptitude")) { router.replace("/aptitude"); return; }
+    if (tracks.includes("academic")) { router.replace("/academic"); return; }
 
-    // ✅ الثاني للقدرات
-    if (tracks.includes("aptitude")) {
-      router.replace("/aptitude");
-      return;
-    }
-
-    // ✅ الثالث للتحصيلي
-    if (tracks.includes("academic")) {
-      router.replace("/academic");
-      return;
-    }
-
-    // ✅ لو معندوش tracks → onboarding
-    if (tracks.length === 0 && pathname !== "/onboarding") {
+    // No tracks → onboarding
+    if (tracks.length === 0) {
       router.replace("/onboarding");
       return;
     }
-  }
 
-}, [userLoaded, isReady, isSignedIn, userId, currentUser, router, pathname]);
+  }, [userLoaded, isSignedIn, currentUser, pathname, router]);
+
+  // Reset hasRedirected when user signs out
+  useEffect(() => {
+    if (isSignedIn === false) {
+      hasRedirected.current = false;
+    }
+  }, [isSignedIn]);
 
   return null;
 }
