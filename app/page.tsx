@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useAuth, SignInButton } from "@clerk/nextjs";
+import { useAuth, SignInButton, SignUpButton } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
@@ -80,6 +80,11 @@ export default function LandingPage() {
 
   const handleSignInClick = () => {
     // ✅ نضع علامة قبل فتح المودال
+    sessionStorage.setItem("clerk_signed_in", "true");
+  };
+
+  // ✅ دالة تسجيل حساب جديد
+  const handleSignUpClick = () => {
     sessionStorage.setItem("clerk_signed_in", "true");
   };
 
@@ -267,7 +272,7 @@ export default function LandingPage() {
       parents: lang === "ar" ? "أولياء الأمور" : "Parents",
       liveClasses: lang === "ar" ? "الفصول المباشرة" : "Live Classes",
       login: lang === "ar" ? "تسجيل الدخول" : "Log In",
-      getStarted: lang === "ar" ? "ابدأ الآن" : "Get Started",
+      signUp: lang === "ar" ? "إنشاء حساب" : "Sign Up",
     },
     hero: {
       badge: lang === "ar" ? data.heroBadgeAr : data.heroBadge,
@@ -890,18 +895,18 @@ export default function LandingPage() {
             {isSignedIn ? (
               <Link href="/onboarding">
                 <button className="text-sm font-semibold bg-[#003178] text-white px-4 py-2 rounded-lg hover:bg-[#002a5f] transition-colors">
-                  {t.nav.getStarted}
+                  {t.nav.signUp}
                 </button>
               </Link>
             ) : (
-              <SignInButton mode="modal">
+              <SignUpButton mode="modal">
                 <button
-                  onClick={handleSignInClick}
+                  onClick={handleSignUpClick}
                   className="text-sm font-semibold bg-[#003178] text-white px-4 py-2 rounded-lg hover:bg-[#002a5f] transition-colors"
                 >
-                  {t.nav.getStarted}
+                  {t.nav.signUp}
                 </button>
-              </SignInButton>
+              </SignUpButton>
             )}
           </div>
 
@@ -924,15 +929,15 @@ export default function LandingPage() {
               {isSignedIn ? (
                 <Link href="/onboarding" className="flex-1">
                   <button className="w-full text-sm font-semibold bg-[#003178] text-white px-4 py-2 rounded-lg">
-                    {t.nav.getStarted}
+                    {t.nav.signUp}
                   </button>
                 </Link>
               ) : (
                 <SignInButton mode="modal">
                   <button
-                  onClick={handleSignInClick} 
-                  className="flex-1 text-sm font-semibold bg-[#003178] text-white px-4 py-2 rounded-lg">
-                    {t.nav.getStarted}
+                    onClick={handleSignInClick}
+                    className="flex-1 text-sm font-semibold bg-[#003178] text-white px-4 py-2 rounded-lg">
+                    {t.nav.signUp}
                   </button>
                 </SignInButton>
               )}
@@ -993,18 +998,22 @@ export default function LandingPage() {
                   : "Understands the subject and guarantees you the full mark"}
               </p>
 
-              {/* CTA Buttons - ✅ من Convex */}
+              {/* ── CTA Buttons - ✅ من Convex ─────────────────────────────── */}
               <div className="flex flex-wrap gap-4 mb-8">
-                <Link href={data.ctaUrl || "/onboarding"}>
+                {/* <Link href={data.ctaUrl || "/onboarding"}>
                   <button className="bg-[#003178] hover:bg-[#002a5f] text-white font-semibold px-8 py-3.5 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105">
-                    {lang === "ar" ? data.ctaTextAr || "إعرف أكثر عن باقات الدروس" : data.ctaText || "Learn More About Lesson Packages"}
+                    {lang === "ar" ? "احجز درسك الآن" : "Book Your Lesson Now"}
                   </button>
-                </Link>
-                <Link href="/onboarding">
-                  <button className="border-2 border-[#003178] text-[#003178] hover:bg-[#003178] hover:text-white font-semibold px-8 py-3.5 rounded-xl transition-all duration-300">
-                    {lang === "ar" ? "تواصل معنا" : "Contact Us"}
-                  </button>
-                </Link>
+                </Link> */}
+                <a
+                  href={data.whatsappLink || "https://wa.me/966500000000"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-3 bg-[#1c994a] hover:bg-[#1da851] text-white font-semibold px-8 py-4 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl" 
+                >
+                  <Icons.FaWhatsapp className="h-5 w-5" />
+                  {lang === "ar" ? "تواصل معنا عبر واتساب" : "Contact Us via WhatsApp"}
+                </a>
               </div>
 
               {/* Trust Badges - ✅ من Convex */}
