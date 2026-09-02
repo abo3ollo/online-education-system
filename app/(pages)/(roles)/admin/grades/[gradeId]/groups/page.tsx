@@ -51,34 +51,51 @@ function GroupCard({
   group,
   onDelete,
   isDeleting,
+  gradeId,
 }: {
   group: any;
   onDelete: (id: string) => void;
   isDeleting: boolean;
+  gradeId: string;
 }) {
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="hover:shadow-md transition-shadow relative">
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <div>
             <CardTitle className="text-lg">{group.name}</CardTitle>
             <p className="text-sm text-gray-500">{group.nameEn}</p>
           </div>
-          <Badge
-            className={
-              group.status === "active"
-                ? "bg-green-100 text-green-700"
+          <div className="flex items-center gap-2">
+            <Badge
+              className={
+                group.status === "active"
+                  ? "bg-green-100 text-green-700"
+                  : group.status === "completed"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-gray-100 text-gray-700"
+              }
+            >
+              {group.status === "active"
+                ? "نشط"
                 : group.status === "completed"
-                ? "bg-blue-100 text-blue-700"
-                : "bg-gray-100 text-gray-700"
-            }
-          >
-            {group.status === "active"
-              ? "نشط"
-              : group.status === "completed"
-              ? "مكتمل"
-              : "غير نشط"}
-          </Badge>
+                  ? "مكتمل"
+                  : "غير نشط"}
+            </Badge>
+            {/* ✅ زر حذف المجموعة */}
+            <button
+              onClick={() => onDelete(group._id)}
+              disabled={isDeleting}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+              title="حذف المجموعة"
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -96,13 +113,13 @@ function GroupCard({
             <span>المشرف: {group.supervisorName || "غير محدد"}</span>
           </div>
           <div className="flex items-center gap-2 mt-3">
-            <Link href={`/admin/grades/${group.gradeId}/groups/${group._id}/schedule`}className="flex-1">
+            <Link href={`/admin/grades/${gradeId}/groups/${group._id}/schedule`} className="flex-1">
               <Button size="sm" variant="outline" className="w-full gap-1">
                 <Calendar className="h-4 w-4" />
                 الجدول
               </Button>
             </Link>
-            <Link href={`/admin/grades/${group.gradeId}/groups/${group._id}`} className="flex-1">
+            <Link href={`/admin/grades/${gradeId}/groups/${group._id}`} className="flex-1">
               <Button size="sm" variant="outline" className="w-full gap-1">
                 <Users className="h-4 w-4" />
                 الطلاب
@@ -211,8 +228,20 @@ export default function GradeGroupsPage() {
     }
   };
 
+  // ✅ دالة حذف المجموعة
   const handleDeleteGroup = async (groupId: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذه المجموعة؟")) return;
+    const groupToDelete = groups.find((g: any) => g._id === groupId);
+    if (!groupToDelete) return;
+
+    const hasStudents = groupToDelete.students && groupToDelete.students.length > 0;
+
+    if (!confirm(
+      `هل أنت متأكد من حذف المجموعة "${groupToDelete.name}"؟\n${hasStudents
+        ? `⚠️ تحتوي المجموعة على ${groupToDelete.students.length} طالب. سيتم إزالتهم من المجموعة قبل الحذف.`
+        : ""
+      }\nلا يمكن التراجع عن هذا الإجراء.`
+    )) return;
+
     setIsDeleting(groupId);
     try {
       await deleteGroup({ groupId: groupId as any });
@@ -324,6 +353,7 @@ export default function GradeGroupsPage() {
             <GroupCard
               key={group._id}
               group={group}
+              gradeId={gradeId}
               onDelete={handleDeleteGroup}
               isDeleting={isDeleting === group._id}
             />

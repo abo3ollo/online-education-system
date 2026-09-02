@@ -917,21 +917,21 @@ export default function LandingPage() {
 
         {mobileOpen && (
           <div className="lg:hidden bg-[#f9f9ff] border-t border-[#c3c6d4] px-6 py-4 space-y-3">
-            {[t.nav.students, t.nav.teachers, t.nav.parents, t.nav.liveClasses].map((item) => (
+            {/* {[t.nav.students, t.nav.teachers, t.nav.parents, t.nav.liveClasses].map((item) => (
               <a key={item} href="#" className="block text-sm text-[#434652] py-1">{item}</a>
-            ))}
+            ))} */}
             <div className="pt-2 flex gap-3">
               {isSignedIn ? (
                 <Link href="/onboarding" className="flex-1">
-                  <button 
-                  onClick={handleSignInClick}
-                  className="w-full text-sm font-semibold bg-[#003178] text-white px-4 py-2 rounded-lg">
+                  <button className="w-full text-sm font-semibold bg-[#003178] text-white px-4 py-2 rounded-lg">
                     {t.nav.getStarted}
                   </button>
                 </Link>
               ) : (
                 <SignInButton mode="modal">
-                  <button className="flex-1 text-sm font-semibold bg-[#003178] text-white px-4 py-2 rounded-lg">
+                  <button
+                  onClick={handleSignInClick} 
+                  className="flex-1 text-sm font-semibold bg-[#003178] text-white px-4 py-2 rounded-lg">
                     {t.nav.getStarted}
                   </button>
                 </SignInButton>

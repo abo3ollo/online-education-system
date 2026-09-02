@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AddParentModal } from "@/app/_components/AddParentModal";
 import { LinkParentStudentModal } from "@/app/_components/LinkParentStudentModal";
+import { EditParentModal } from "@/app/_components/EditParentModal";
 
 export default function AdminParentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,13 +36,15 @@ export default function AdminParentsPage() {
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedParent, setSelectedParent] = useState<any>(null);
 
   const parentsData = useQuery(api.user.parents.getParents, {
     status: selectedFilter !== "all" ? selectedFilter : undefined,
     search: searchQuery || undefined,
   });
   console.log(parentsData);
-  
+
   const parentsStats = useQuery(api.user.parents.getParentsStats);
   const deleteParent = useMutation(api.user.parents.deleteParent);
 
@@ -94,7 +97,7 @@ export default function AdminParentsPage() {
 
   const handleDelete = async (parentId: string) => {
     if (!confirm("هل أنت متأكد من حذف ولي الأمر؟ لا يمكن التراجع عن هذا الإجراء.")) return;
-    
+
     setDeletingId(parentId);
     try {
       await deleteParent({ parentId: parentId as any });
@@ -106,12 +109,17 @@ export default function AdminParentsPage() {
     }
   };
 
+  const handleEditParent = (parent: any) => {
+    setSelectedParent(parent);
+    setIsEditModalOpen(true);
+  };
+
   const handleLinkParents = (parentId: string) => {
     setSelectedParentId(parentId);
     setIsLinkModalOpen(true);
   };
 
-   const handleExportCSV = () => {
+  const handleExportCSV = () => {
     setIsExporting(true);
     try {
       const exportData = parents.map((parent: any) => ({
@@ -129,7 +137,7 @@ export default function AdminParentsPage() {
       const headers = Object.keys(exportData[0] || {});
       const csvRows = [
         headers.join(","),
-        ...exportData.map(row => 
+        ...exportData.map(row =>
           headers.map(header => {
             const value = row[header as keyof typeof row];
             if (typeof value === "string" && (value.includes(",") || value.includes('"'))) {
@@ -141,7 +149,7 @@ export default function AdminParentsPage() {
       ];
 
       const csvContent = csvRows.join("\n");
-      
+
       const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
       const link = document.createElement("a");
       const url = URL.createObjectURL(blob);
@@ -210,9 +218,8 @@ export default function AdminParentsPage() {
                   <div className={`w-11 h-11 rounded-xl ${stat.iconBg} flex items-center justify-center`}>
                     <Icon className={`h-5 w-5 ${stat.iconColor}`} />
                   </div>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                    stat.up ? "text-green-600" : "text-red-500"
-                  }`}>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${stat.up ? "text-green-600" : "text-red-500"
+                    }`}>
                     {stat.trend} {stat.up ? "↗" : "↘"}
                   </span>
                 </div>
@@ -371,11 +378,12 @@ export default function AdminParentsPage() {
                         {/* الإجراءات */}
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-1">
-                            <Link href={`/admin/parents/${parent._id}`}>
-                              <button className="p-2 hover:bg-blue-50 rounded-lg transition-colors group">
+                              <button
+                                onClick={() => handleEditParent(parent)}
+                                className="p-2 hover:bg-blue-50 rounded-lg transition-colors group"
+                              >
                                 <Edit className="h-4 w-4 text-gray-400 group-hover:text-blue-600" />
-                              </button>
-                            </Link>
+                              </button>           
                             <button
                               className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
                               onClick={() => handleDelete(parent._id)}
@@ -411,8 +419,20 @@ export default function AdminParentsPage() {
 
       {/* النوافذ المنبثقة */}
       <AddParentModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
-      <LinkParentStudentModal 
-        isOpen={isLinkModalOpen} 
+      <EditParentModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedParent(null);
+        }}
+        parentData={selectedParent}
+        onSuccess={() => {
+          // يمكنك إعادة تحميل البيانات هنا
+          // router.refresh();
+        }}
+      />
+      <LinkParentStudentModal
+        isOpen={isLinkModalOpen}
         onClose={() => {
           setIsLinkModalOpen(false);
           setSelectedParentId(null);
