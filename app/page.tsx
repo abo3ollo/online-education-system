@@ -230,6 +230,7 @@ export default function LandingPage() {
     heroSubtitle: "A comprehensive educational platform designed to empower students and teachers through advanced interactive tools.",
     heroSubtitleAr: "منصة تعليمية شاملة مصممة لتمكين الطلاب والمعلمين من خلال أدوات تفاعلية متقدمة.",
     heroImageUrl: "/images/hero.png",
+    heroVideoUrl: "", // ✅ أضف هذا
     schoolName: "Marine Academy",
     schoolNameAr: "أكاديمية مارين",
     ctaText: "Start Your Journey Now",
@@ -313,6 +314,17 @@ export default function LandingPage() {
 
 
   const toggleLang = () => setLang((l) => (l === "en" ? "ar" : "en"));
+
+  // دالة مساعدة لاستخراج ID الفيديو من رابط YouTube
+  function getYouTubeEmbedUrl(url: string): string {
+    if (!url) return "";
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    if (match && match[2].length === 11) {
+      return `https://www.youtube.com/embed/${match[2]}`;
+    }
+    return url;
+  }
 
   // عرض الأقسام من Convex
   const renderSections = () => {
@@ -863,7 +875,20 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           {/* ✅ Logo + Title */}
           <Link href="/" className="flex items-center gap-3 shrink-0">
-            <span className="text-4xl font-semibold text-[#003178]">
+            {/* ✅ عرض الشعار إذا كان موجود */}
+            {data.logoUrl && (
+              <div className="w-15 h-15 rounded-lg overflow-hidden flex items-center justify-center bg-white">
+                <img
+                  src={data.logoUrl}
+                  alt="School Logo"
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+            <span className="text-3xl md:text-4xl font-semibold text-[#003178]">
               {lang === "ar" ? data.schoolNameAr || "أكاديمية إتقان" : data.schoolName || "Test Academy"}
             </span>
           </Link>
@@ -1009,7 +1034,7 @@ export default function LandingPage() {
                   href={data.whatsappLink || "https://wa.me/966500000000"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-3 bg-[#1c994a] hover:bg-[#1da851] text-white font-semibold px-8 py-4 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl" 
+                  className="inline-flex items-center justify-center gap-3 bg-[#1c994a] hover:bg-[#1da851] text-white font-semibold px-8 py-4 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
                 >
                   <Icons.FaWhatsapp className="h-5 w-5" />
                   {lang === "ar" ? "تواصل معنا عبر واتساب" : "Contact Us via WhatsApp"}
@@ -1075,22 +1100,37 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Right - Hero Image */}
+            {/* Right - Hero Image/Video */}
             <div className="relative hidden lg:block">
               <div className="relative">
-                {/* Main Image Container */}
-                <div className="relative rounded-3xl overflow-hidden shadow-2xl">
-                  <img
-                    src={data.heroImageUrl || "/images/hero2.jpg"}
-                    alt="Hero illustration"
-                    className="w-full h-auto object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = "/images/hero-placeholder.jpg";
-                    }}
-                  />
-                  {/* Overlay Gradient */}
-                  <div className="absolute inset-0 bg-linear-to-t from-[#111c2d]/20 to-transparent"></div>
-                </div>
+                {/* ✅ إذا كان هناك فيديو، اعرض الفيديو */}
+                {data.heroVideoUrl ? (
+                  <div className="relative rounded-3xl overflow-hidden shadow-2xl aspect-video bg-black">
+                    <iframe
+                      src={getYouTubeEmbedUrl(data.heroVideoUrl)}
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      title="Hero Video"
+                    />
+                    {/* Overlay Gradient */}
+                    <div className="absolute inset-0 bg-linear-to-t from-[#111c2d]/20 to-transparent pointer-events-none"></div>
+                  </div>
+                ) : (
+                  /* ✅ وإلا اعرض الصورة */
+                  <div className="relative rounded-3xl overflow-hidden shadow-2xl">
+                    <img
+                      src={data.heroImageUrl || "/images/hero2.jpg"}
+                      alt="Hero illustration"
+                      className="w-full h-auto object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/images/hero-placeholder.jpg";
+                      }}
+                    />
+                    {/* Overlay Gradient */}
+                    <div className="absolute inset-0 bg-linear-to-t from-[#111c2d]/20 to-transparent"></div>
+                  </div>
+                )}
 
                 {/* ✅ Text under image - النص تحت الصورة (من Convex) */}
                 <div className="mt-7 text-center">

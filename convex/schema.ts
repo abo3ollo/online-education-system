@@ -673,6 +673,7 @@ landingSettings: defineTable({
     heroSubtitle: v.optional(v.string()),
     heroSubtitleAr: v.optional(v.string()),
     heroImageUrl: v.string(),
+    heroVideoUrl: v.optional(v.string()), // رابط فيديو الهيرو (YouTube أو ملف)
     heroRating: v.optional(v.string()),
     heroRatingLabel: v.optional(v.string()),
     heroRatingLabelAr: v.optional(v.string()),
@@ -684,6 +685,9 @@ landingSettings: defineTable({
     // ✅ School Name
     schoolName: v.optional(v.string()),
     schoolNameAr: v.optional(v.string()),
+
+    // ✅ Logo
+    logoUrl: v.optional(v.string()), // ✅ أضف هذا الحقل الجديد
 
     // ✅ Trust Badges
     trustBadge1: v.optional(v.string()),

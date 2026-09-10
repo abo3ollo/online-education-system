@@ -24,6 +24,21 @@ async function getAdminUser(ctx: any) {
   return user;
 }
 
+// ✅ توليد رابط رفع الملفات
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const getUrl = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
 // ══════════════════════════════════════════════════════════════════
 // SETTINGS
 // ══════════════════════════════════════════════════════════════════
@@ -50,17 +65,13 @@ export const getPublicSettings = query({
   },
 });
 
-
-
-
-// convex/landing/landing.ts
-
 export const updateSettings = mutation({
   args: {
     // Hero Fields
     heroTitle: v.optional(v.string()),
     heroTitleAr: v.optional(v.string()),
     heroImageUrl: v.optional(v.string()),
+    heroVideoUrl: v.optional(v.string()), // ✅ أضف هذا
 
     heroRating: v.optional(v.string()),
     heroRatingLabel: v.optional(v.string()),
@@ -74,6 +85,9 @@ export const updateSettings = mutation({
     // School Name
     schoolName: v.optional(v.string()),
     schoolNameAr: v.optional(v.string()),
+
+    // Logo
+    logoUrl: v.optional(v.string()),
 
     // Trust Badges
     trustBadge1: v.optional(v.string()),
@@ -162,8 +176,10 @@ export const updateSettings = mutation({
         heroBadgeAr: "مستقبل التعليم البحري",
         heroTitle: "Learn Anytime, Anywhere with Marine Academy",
         heroTitleAr: "تعلّم في أي وقت، من أي مكان مع أكاديمية مارين",
-        heroSubtitle: "A comprehensive educational platform designed to empower students and teachers through advanced interactive tools.",
-        heroSubtitleAr: "منصة تعليمية شاملة مصممة لتمكين الطلاب والمعلمين من خلال أدوات تفاعلية متقدمة.",
+        heroSubtitle:
+          "A comprehensive educational platform designed to empower students and teachers through advanced interactive tools.",
+        heroSubtitleAr:
+          "منصة تعليمية شاملة مصممة لتمكين الطلاب والمعلمين من خلال أدوات تفاعلية متقدمة.",
         heroImageUrl: "/images/Hero1.png",
         heroBottomText: "Learn English in Britain with Confidence",
         heroBottomTextAr: "تعلم الإنجليزية في بريطانيا بخطوات واضحة",
@@ -198,12 +214,15 @@ export const updateSettings = mutation({
         whatsappLink: "https://wa.me/966500000000",
         address: "Riyadh, Saudi Arabia",
         addressAr: "الرياض، المملكة العربية السعودية",
-        footerDescription: "The global leader in marine and technical education.",
+        footerDescription:
+          "The global leader in marine and technical education.",
         footerDescriptionAr: "الرائد العالمي في التعليم البحري والتقني.",
         seoTitle: "Marine Academy - Premier Marine Education Platform",
         seoTitleAr: "أكاديمية مارين - منصة التعليم البحري الرائدة",
-        seoDescription: "Marine Academy offers comprehensive marine education with live classes, expert teachers, and interactive learning tools.",
-        seoDescriptionAr: "تقدم أكاديمية مارين تعليماً بحرياً شاملاً مع فصول مباشرة ومعلمين خبراء وأدوات تعلم تفاعلية.",
+        seoDescription:
+          "Marine Academy offers comprehensive marine education with live classes, expert teachers, and interactive learning tools.",
+        seoDescriptionAr:
+          "تقدم أكاديمية مارين تعليماً بحرياً شاملاً مع فصول مباشرة ومعلمين خبراء وأدوات تعلم تفاعلية.",
         trustBadge1: "National eLearning Center",
         trustBadge1Ar: "المركز الوطني للتعليم الإلكتروني",
         trustBadge2: "Most Downloaded School",

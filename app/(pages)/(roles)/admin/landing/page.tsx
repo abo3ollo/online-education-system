@@ -44,6 +44,7 @@ import {
   GraduationCap,
   Play,
   Megaphone,
+  Upload,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -54,11 +55,13 @@ interface LandingSettings {
   // Hero Fields
   // heroBadge: string;
   // heroBadgeAr: string;
+  logoUrl?: string; // ✅ أضف هذا
   heroTitle: string;
   heroTitleAr: string;
   // heroSubtitle: string;
   // heroSubtitleAr: string;
   heroImageUrl: string;
+  heroVideoUrl?: string; // ✅ أضف هذا
   heroRating?: string;
   heroRatingLabel?: string;
   heroRatingLabelAr?: string;
@@ -192,6 +195,8 @@ export default function AdminLandingPage() {
   const [dialogType, setDialogType] = useState<"section" | "course" | "testimonial" | "gallery" | "video" | "announcement" | "subscription">("section");
 
   const [lang, setLang] = useState<"en" | "ar">("ar"); // الافتراضي عربي
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   // جلب بيانات Landing Page
   const landingData = useQuery(api.landing.landing.getLandingData);
@@ -225,8 +230,12 @@ export default function AdminLandingPage() {
   const createSubscription = useMutation(api.landing.landing.createSubscription);
   const updateSubscription = useMutation(api.landing.landing.updateSubscription);
   const deleteSubscription = useMutation(api.landing.landing.deleteSubscription);
+  const generateUploadUrl = useMutation(api.landing.landing.generateUploadUrl);
+  const getUrl = useMutation(api.landing.landing.getUrl); // ✅ تغيرت إلى mutation  
 
   const [settings, setSettings] = useState<LandingSettings>({
+
+      logoUrl: "", // ✅ أضف هذا
 
     heroTitle: "Book Your Private Tutor for",
     heroTitleAr: "احجز معلمك الخصوصي لـ",
@@ -236,6 +245,7 @@ export default function AdminLandingPage() {
     heroBottomSmText: "Steps Steps to Learn English in Britain",
     heroBottomSmTextAr: "خطوات تعلم الإنجليزية في بريطانيا",
     heroImageUrl: "/images/Hero1.png",
+    heroVideoUrl: "", // ✅ أضف هذا
     heroRating: "4.8",
     heroRatingLabel: "Student Satisfaction",
     heroRatingLabelAr: "نسبة رضا الطالب",
@@ -290,11 +300,13 @@ export default function AdminLandingPage() {
         // Hero Fields
         // heroBadge: dbSettings.heroBadge ?? prev.heroBadge,
         // heroBadgeAr: dbSettings.heroBadgeAr ?? prev.heroBadgeAr,
+        logoUrl: dbSettings.logoUrl ?? prev.logoUrl, // ✅ أضف هذا
         heroTitle: dbSettings.heroTitle ?? prev.heroTitle,
         heroTitleAr: dbSettings.heroTitleAr ?? prev.heroTitleAr,
         // heroSubtitle: dbSettings.heroSubtitle ?? prev.heroSubtitle,
         // heroSubtitleAr: dbSettings.heroSubtitleAr ?? prev.heroSubtitleAr,
         heroImageUrl: dbSettings.heroImageUrl ?? prev.heroImageUrl,
+        heroVideoUrl: dbSettings.heroVideoUrl ?? prev.heroVideoUrl, // ✅ أضف هذا
         heroRating: dbSettings.heroRating ?? prev.heroRating,
         heroRatingLabel: dbSettings.heroRatingLabel ?? prev.heroRatingLabel,
         heroRatingLabelAr: dbSettings.heroRatingLabelAr ?? prev.heroRatingLabelAr,
@@ -339,6 +351,60 @@ export default function AdminLandingPage() {
       }));
     }
   }, [landingData]);
+
+// دالة رفع الشعار
+const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  // ✅ تحقق من حجم الملف (max 2MB)
+  if (file.size > 2 * 1024 * 1024) {
+    toast.error(lang === "ar" ? "حجم الملف كبير جداً (الحد الأقصى 2MB)" : "File size too large (max 2MB)");
+    return;
+  }
+
+  // ✅ تحقق من نوع الملف
+  if (!file.type.startsWith('image/')) {
+    toast.error(lang === "ar" ? "الرجاء رفع ملف صورة فقط" : "Please upload an image file only");
+    return;
+  }
+
+  setIsUploadingLogo(true);
+  try {
+    // ✅ 1. جلب رابط الرفع
+    const uploadUrl = await generateUploadUrl();
+    
+    // ✅ 2. رفع الملف
+    const result = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+
+    if (!result.ok) {
+      throw new Error("Upload failed");
+    }
+
+    const { storageId } = await result.json();
+
+    // ✅ 3. الحصول على رابط الملف (getUrl أصبحت mutation)
+    const url = await getUrl({ storageId });
+
+    // ✅ 4. حفظ الرابط في الإعدادات (مع التحقق من null)
+    if (url) {
+      setSettings({ ...settings, logoUrl: url });
+      toast.success(lang === "ar" ? "تم رفع الشعار بنجاح" : "Logo uploaded successfully");
+    } else {
+      throw new Error("Failed to get file URL");
+    }
+  } catch (error) {
+    console.error("Upload error:", error);
+    toast.error(lang === "ar" ? "حدث خطأ أثناء رفع الشعار" : "Error uploading logo");
+  } finally {
+    setIsUploadingLogo(false);
+    setLogoFile(null);
+  }
+};
 
 
 
@@ -617,7 +683,7 @@ export default function AdminLandingPage() {
             </div>
           </div>
 
-          {/* Hero Image */}
+          {/* Hero Image / Video */}
           <div className="space-y-2">
             <Label>{lang === "ar" ? "صورة الهيرو (رابط)" : "Hero Image (URL)"}</Label>
             <Input
@@ -625,7 +691,21 @@ export default function AdminLandingPage() {
               onChange={(e) => setSettings({ ...settings, heroImageUrl: e.target.value })}
               placeholder={lang === "ar" ? "أدخل رابط الصورة" : "Enter image URL"}
             />
-            {settings.heroImageUrl && (
+
+            {/* ✅ حقل فيديو الهيرو */}
+            <div className="mt-4">
+              <Label>{lang === "ar" ? "فيديو الهيرو (رابط YouTube)" : "Hero Video (YouTube URL)"}</Label>
+              <Input
+                value={settings.heroVideoUrl || ""}
+                onChange={(e) => setSettings({ ...settings, heroVideoUrl: e.target.value })}
+                placeholder="https://www.youtube.com/watch?v=..."
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                {lang === "ar" ? "إذا تم إدخال رابط فيديو، سيظهر الفيديو بدلاً من الصورة" : "If a video URL is entered, the video will appear instead of the image"}
+              </p>
+            </div>
+
+            {settings.heroImageUrl && !settings.heroVideoUrl && (
               <div className="mt-2 relative w-full h-48 rounded-lg overflow-hidden border border-[#c0c8c9] bg-gray-100">
                 <img
                   src={settings.heroImageUrl}
@@ -633,23 +713,21 @@ export default function AdminLandingPage() {
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
-                    const parent = e.currentTarget.parentElement;
-                    if (parent) {
-                      const fallback = document.createElement('div');
-                      fallback.className = 'w-full h-full flex items-center justify-center text-gray-400';
-                      fallback.innerHTML = '⚠️ ' + (lang === "ar" ? "تعذر تحميل الصورة" : "Image failed to load");
-                      parent.appendChild(fallback);
-                    }
                   }}
                 />
-                <a
-                  href={settings.heroImageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-3 py-1 rounded-lg hover:bg-black/90 transition-colors"
-                >
-                  {lang === "ar" ? "فتح الصورة" : "Open Image"}
-                </a>
+              </div>
+            )}
+
+            {/* ✅ معاينة الفيديو */}
+            {settings.heroVideoUrl && (
+              <div className="mt-2 relative w-full aspect-video rounded-lg overflow-hidden border border-[#c0c8c9] bg-black">
+                <iframe
+                  src={getYouTubeEmbedUrl(settings.heroVideoUrl)}
+                  className="w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title="Hero Video"
+                />
               </div>
             )}
           </div>
@@ -874,6 +952,16 @@ export default function AdminLandingPage() {
       </Card>
     </div>
   );
+
+  // في بداية الـ Component أو خارجها
+  function getYouTubeEmbedUrl(url: string): string {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    if (match && match[2].length === 11) {
+      return `https://www.youtube.com/embed/${match[2]}`;
+    }
+    return url;
+  }
 
   const renderSectionsTab = () => (
     <div className="space-y-4" dir="rtl">
@@ -2580,8 +2668,93 @@ export default function AdminLandingPage() {
                   </div>
                 </div>
 
+                {/* ✅ Logo Upload - رفع من الكمبيوتر */}
+                <div className="space-y-2 pt-2 border-t border-[#c0c8c9]">
+                  <Label>{lang === "ar" ? "شعار المدرسة" : "School Logo"}</Label>
+
+                  <div className="flex items-center gap-4">
+                    {/* ✅ زر رفع الملفات */}
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        disabled={isUploadingLogo}
+                      />
+                      <Button
+                        variant="outline"
+                        className="border-[#c0c8c9] hover:border-[#1a7a8a]"
+                        disabled={isUploadingLogo}
+                      >
+                        {isUploadingLogo ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                            {lang === "ar" ? "جاري الرفع..." : "Uploading..."}
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 ml-2" />
+                            {lang === "ar" ? "اختر صورة" : "Choose Image"}
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* ✅ عرض الرابط الحالي (اختياري) */}
+                    {settings.logoUrl && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-500 hover:text-red-700"
+                        onClick={() => setSettings({ ...settings, logoUrl: "" })}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {lang === "ar" ? "حذف" : "Remove"}
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* ✅ معاينة الشعار */}
+                  {settings.logoUrl && (
+                    <div className="mt-2 flex items-center gap-4 p-4 bg-[#f7fafa] rounded-lg border border-[#c0c8c9]">
+                      <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-[#c0c8c9] bg-white flex items-center justify-center">
+                        <img
+                          src={settings.logoUrl}
+                          alt="School Logo"
+                          className="w-full h-full object-contain p-2"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            const parent = (e.target as HTMLImageElement).parentElement;
+                            if (parent) {
+                              const fallback = document.createElement('div');
+                              fallback.className = 'w-full h-full flex items-center justify-center text-gray-400 text-xs';
+                              fallback.textContent = '⚠️ ' + (lang === "ar" ? "تعذر تحميل الشعار" : "Logo failed to load");
+                              parent.appendChild(fallback);
+                            }
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-[#111c2d]">
+                          {lang === "ar" ? "معاينة الشعار" : "Logo Preview"}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate max-w-xs">
+                          {settings.logoUrl}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-gray-400">
+                    {lang === "ar"
+                      ? "يُفضل استخدام صورة PNG أو SVG بحجم لا يتجاوز 2MB"
+                      : "Prefer PNG or SVG image, max size 2MB"}
+                  </p>
+                </div>
+
                 {/* Theme Mode */}
-                <div className="space-y-2">
+                {/* <div className="space-y-2">
                   <Label>{lang === "ar" ? "وضع السمة" : "Theme Mode"}</Label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -2603,7 +2776,7 @@ export default function AdminLandingPage() {
                       {lang === "ar" ? "فاتح" : "Light"}
                     </label>
                   </div>
-                </div>
+                </div> */}
 
                 {/* Contact */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2678,7 +2851,7 @@ export default function AdminLandingPage() {
                 </div>
 
                 {/* Show Sections */}
-                <div className="space-y-4">
+                {/* <div className="space-y-4">
                   <Label>{lang === "ar" ? "إظهار الأقسام" : "Show Sections"}</Label>
                   <div className="flex flex-wrap gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -2708,7 +2881,7 @@ export default function AdminLandingPage() {
                       </label>
                     )}
                   </div>
-                </div>
+                </div> */}
               </CardContent>
             </Card>
           </div>
